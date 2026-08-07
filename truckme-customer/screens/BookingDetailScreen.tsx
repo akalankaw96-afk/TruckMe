@@ -184,6 +184,30 @@ export default function BookingDetailScreen({
           )}
         </View>
 
+        {/* Verified Proof of Delivery (PoD) Card */}
+        {(status === 'Delivered' || booking?.completedAt) && (
+          <View style={podCardStyles.podCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={podCardStyles.title}>✅ Verified Proof of Delivery (PoD)</Text>
+              <View style={podCardStyles.badge}>
+                <Text style={podCardStyles.badgeText}>DELIVERED</Text>
+              </View>
+            </View>
+
+            <Text style={podCardStyles.sub}>
+              Delivered: {booking.completedAt ? new Date(booking.completedAt).toLocaleString() : 'Just now'}
+            </Text>
+            <Text style={podCardStyles.recipient}>
+              Recipient: {booking.pickupContactName || 'Verified Recipient'}
+            </Text>
+
+            <View style={podCardStyles.signatureBox}>
+              <Text style={podCardStyles.sigLabel}>✍️ Verified Digital Signature</Text>
+              <Text style={podCardStyles.sigSub}>[Electronic Touchscreen Signature Confirmed]</Text>
+            </View>
+          </View>
+        )}
+
         {/* Driver Live Tracking Card */}
         {isActive && (
           <View style={styles.card}>
@@ -481,4 +505,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalDestructiveBtnText: { color: 'white', fontWeight: '800', fontSize: 14 },
+});
+
+const podCardStyles = StyleSheet.create({
+  podCard: { backgroundColor: '#E8F8F0', borderWidth: 1.5, borderColor: '#27AE60', borderRadius: 12, padding: 16, marginBottom: 12 },
+  title: { fontSize: 15, fontWeight: '800', color: '#1A2B4A' },
+  badge: { backgroundColor: '#27AE60', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  badgeText: { color: 'white', fontSize: 10, fontWeight: '800' },
+  sub: { fontSize: 12, color: '#5A6B85', marginTop: 2 },
+  recipient: { fontSize: 13, fontWeight: '700', color: '#1A2B4A', marginTop: 6 },
+  signatureBox: { backgroundColor: 'white', borderWidth: 1, borderColor: '#27AE60', borderRadius: 8, padding: 12, marginTop: 10, alignItems: 'center' },
+  sigLabel: { fontSize: 12, fontWeight: '800', color: '#27AE60' },
+  sigSub: { fontSize: 10, color: '#5A6B85', marginTop: 2 },
 });

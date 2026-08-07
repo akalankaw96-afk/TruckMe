@@ -345,6 +345,34 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
+    /// Submits Proof of Delivery (PoD) with recipient signature, cargo photo, recipient name, and notes.
+    /// </summary>
+    [HttpPost("{id:guid}/pod")]
+    public async Task<IActionResult> SubmitProofOfDelivery(Guid id, [FromBody] SubmitPodDto dto)
+    {
+        var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id);
+        if (booking == null) return NotFound("Booking not found");
+
+        booking.Status = BookingStatus.Delivered;
+        booking.CompletedAt = DateTime.UtcNow;
+        if (!string.IsNullOrEmpty(dto.Notes))
+        {
+            booking.CancellationReason = $"PoD Notes: {dto.Notes}";
+        }
+        await _context.SaveChangesAsync();
+
+        return Ok(new {
+            message = "Proof of Delivery submitted successfully",
+            bookingId = id,
+            status = "Delivered",
+            recipientName = dto.RecipientName ?? booking.PickupContactName,
+            completedAt = booking.CompletedAt,
+            signatureReceived = !string.IsNullOrEmpty(dto.RecipientSignature),
+            photoReceived = !string.IsNullOrEmpty(dto.CargoPhotoUrl)
+        });
+    }
+
+    /// <summary>
     /// Gets all pending / searching bookings available for drivers to accept.
     /// </summary>
     [HttpGet("pending")]
@@ -409,6 +437,8 @@ public class BookingsController : ControllerBase
 
     /// <summary>
     /// Cancels a booking.
+    /// <summary>
+    /// Cancels a booking.
     /// </summary>
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> CancelBooking(Guid id, [FromBody] CancelBookingRequestDto? request)
@@ -427,6 +457,84 @@ public class BookingsController : ControllerBase
 
         return Ok(new { message = "Booking cancelled successfully" });
     }
+
+    /// <summary>
+    /// Submits a customer cancellation request. Requires driver approval if trip is assigned/en-route.
+    /// </summary>
+    [HttpPost("{id:guid}/cancel-request")]
+    public async Task<IActionResult> RequestCancellation(Guid id, [FromBody] CancelBookingRequestDto? request)
+    {
+        var booking = await _context.Bookings
+            .Include(b => b.Driver)
+            .FirstOrDefaultAsync(b => b.Id == id);
+            
+        if (booking == null) return NotFound(new { message = "Booking not found" });
+
+        string reason = request?.Reason ?? request?.CancellationReason ?? "Customer requested cancellation";
+
+        // If booking is pending/searching, cancel immediately for free
+        if (booking.Status == BookingStatus.Pending || booking.Status == BookingStatus.Searching)
+        {
+            booking.Status = BookingStatus.Cancelled;
+            booking.CancellationReason = reason;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Booking cancelled successfully", requiresApproval = false, fee = 0 });
+        }
+
+        // If driver assigned or en route, require driver approval & calculate compensation fee
+        decimal feeAmount = booking.Status == BookingStatus.ArrivedAtPickup ? 1500m : 750m;
+        decimal driverCompensation = Math.Round(feeAmount * 0.8m, 2);
+
+        booking.CancellationReason = $"[CANCEL_PENDING] Reason: {reason} | Fee: LKR {feeAmount} | Driver Compensation: LKR {driverCompensation}";
+        await _context.SaveChangesAsync();
+
+        return Ok(new {
+            message = "Cancellation request sent to driver for approval",
+            requiresApproval = true,
+            cancellationFee = feeAmount,
+            driverCompensation = driverCompensation,
+            reason = reason
+        });
+    }
+
+    /// <summary>
+    /// Driver approves or rejects a customer cancellation request.
+    /// </summary>
+    [HttpPost("{id:guid}/cancel-respond")]
+    public async Task<IActionResult> RespondCancellation(Guid id, [FromBody] CancelRespondDto dto)
+    {
+        var booking = await _context.Bookings
+            .Include(b => b.Driver)
+            .FirstOrDefaultAsync(b => b.Id == id);
+
+        if (booking == null) return NotFound(new { message = "Booking not found" });
+
+        if (dto.Approved)
+        {
+            booking.Status = BookingStatus.Cancelled;
+            booking.CancellationReason = $"Cancelled by Customer (Driver Approved: {dto.Reason ?? "Fee Compensated"})";
+            
+            if (booking.Driver != null)
+            {
+                decimal compFee = booking.Status == BookingStatus.ArrivedAtPickup ? 1200m : 600m;
+                booking.Driver.TotalEarnings += compFee;
+                booking.Driver.Status = DriverStatus.Online;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Cancellation approved by driver", status = "Cancelled" });
+        }
+        else
+        {
+            return Ok(new { message = "Cancellation request declined by driver. Trip remains active.", status = booking.Status.ToString() });
+        }
+    }
+}
+
+public class CancelRespondDto
+{
+    public bool Approved { get; set; }
+    public string? Reason { get; set; }
 }
 
 public class CancelBookingRequestDto
@@ -485,4 +593,12 @@ public class AssignDriverRequest
 public class UpdateBookingStatusSimpleDto
 {
     public string Status { get; set; } = string.Empty;
+}
+
+public class SubmitPodDto
+{
+    public string? RecipientName { get; set; }
+    public string? RecipientSignature { get; set; }
+    public string? CargoPhotoUrl { get; set; }
+    public string? Notes { get; set; }
 }

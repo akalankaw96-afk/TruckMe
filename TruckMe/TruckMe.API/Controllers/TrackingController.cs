@@ -49,4 +49,30 @@ public class TrackingController : ControllerBase
 
         return Ok(points);
     }
+
+    [HttpPost]
+    public async Task<IActionResult> PostGpsLocation([FromBody] PostGpsPointDto dto)
+    {
+        var driver = await _context.Drivers.FirstOrDefaultAsync(d => d.Id == dto.DriverId || d.UserId == dto.DriverId);
+        if (driver != null)
+        {
+            driver.CurrentLatitude = (decimal)dto.Latitude;
+            driver.CurrentLongitude = (decimal)dto.Longitude;
+            driver.LastLocationUpdate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(new { message = "Location updated successfully", latitude = dto.Latitude, longitude = dto.Longitude });
+    }
+}
+
+public class PostGpsPointDto
+{
+    public Guid BookingId { get; set; }
+    public Guid DriverId { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public double SpeedKph { get; set; }
+    public double HeadingDegrees { get; set; }
+    public string? Status { get; set; }
 }
