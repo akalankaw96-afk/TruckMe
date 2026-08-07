@@ -128,7 +128,7 @@ public class DriversController : ControllerBase
 
         var bookings = await _context.Bookings
             .AsNoTracking()
-            .Where(b => b.Status == BookingStatus.Pending || b.Status == BookingStatus.Assigned || b.Status == BookingStatus.Searching)
+            .Where(b => b.Status == BookingStatus.Pending || b.Status == BookingStatus.Searching)
             .ToListAsync();
 
         var jobsWithDistance = bookings.Select(b =>
