@@ -26,8 +26,8 @@ public class TrackingController : ControllerBase
         if (booking == null) return NotFound(new { message = "Booking not found" });
 
         var driver = booking.Driver;
-        double driverLat = (double)(driver?.CurrentLatitude != 0 ? driver!.CurrentLatitude : (booking.PickupLatitude != 0 ? booking.PickupLatitude : 6.9271m));
-        double driverLng = (double)(driver?.CurrentLongitude != 0 ? driver!.CurrentLongitude : (booking.PickupLongitude != 0 ? booking.PickupLongitude : 79.8612m));
+        double driverLat = (double)(driver != null && driver.CurrentLatitude != 0 ? driver.CurrentLatitude : (booking.PickupLatitude != 0 ? booking.PickupLatitude : 6.9271m));
+        double driverLng = (double)(driver != null && driver.CurrentLongitude != 0 ? driver.CurrentLongitude : (booking.PickupLongitude != 0 ? booking.PickupLongitude : 79.8612m));
 
         var points = new[]
         {

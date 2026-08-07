@@ -43,14 +43,20 @@ export default function BookingDetailScreen({
 
   const load = async () => {
     try {
-      const [bRes, tRes] = await Promise.all([
-        client.get(`/api/bookings/${bookingId}`),
-        client.get(`/api/tracking/booking/${bookingId}`),
-      ]);
+      const bRes = await client.get(`/api/bookings/${bookingId}`);
       setBooking(bRes.data);
-      setTracking(tRes.data || []);
     } catch (e: any) {
       showToast(e?.response?.data?.message || 'Failed to load booking details', 'error');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    try {
+      const tRes = await client.get(`/api/tracking/booking/${bookingId}`);
+      setTracking(tRes.data || []);
+    } catch (tErr) {
+      setTracking([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
