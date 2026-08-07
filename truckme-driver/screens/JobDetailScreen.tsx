@@ -15,8 +15,6 @@ interface Props {
   onAccepted?: () => void;
 }
 
-const STATUSES = ['Assigned', 'EnRoute', 'Arrived', 'Loading', 'InTransit', 'AtDropoff', 'Delivered', 'Cancelled'];
-
 export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, onAccepted }: Props) {
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +22,10 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   const [gpsTimer, setGpsTimer] = useState<any>(null);
   const [gpsActive, setGpsActive] = useState(false);
 
+  // Multi-Drop Stop Tracking State
+  const [activeStopIndex, setActiveStopIndex] = useState(0);
+
+  // Proof of Delivery (PoD) Modal
   const [showPodModal, setShowPodModal] = useState(false);
   const [podRecipientName, setPodRecipientName] = useState('');
   const [podNotes, setPodNotes] = useState('');
@@ -71,7 +73,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
       });
       await load();
       onAccepted?.();
-      Alert.alert('Accepted!', 'Job assigned to you. Proceed to customer pickup location.');
+      Alert.alert('Accepted!', 'Job assigned to you. Map focused on pickup location.');
     } catch (e: any) {
       Alert.alert('Failed', e?.response?.data?.message || e?.message);
     } finally {
@@ -101,10 +103,10 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
         recipientName: podRecipientName || job?.pickupContactName || 'Verified Recipient',
         recipientSignature: podSignature,
         cargoPhotoUrl: podPhoto || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=500',
-        notes: podNotes || 'Cargo inspected and received in good condition',
+        notes: podNotes || 'Cargo inspected and delivered safely across all stops',
       });
       setShowPodModal(false);
-      Alert.alert('✅ Proof of Delivery Verified', 'Trip completed successfully & earnings updated!');
+      Alert.alert('✅ Multi-Drop PoD Verified', 'All delivery stops completed successfully!');
       await load();
     } catch (e: any) {
       Alert.alert('Failed', e?.response?.data?.message || e?.message);
@@ -178,11 +180,11 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
       case 'EnRoute':
       case 'Arrived':
       case 'Loading':
-        return 2; // Phase 2: Loading Cargo
+        return 2; // Phase 2: Loading Cargo at Pickup
       case 'InTransit':
-        return 3; // Phase 3: En-Route to Delivery Unload Site
+        return 3; // Phase 3: En-Route to Delivery Unload Locations
       case 'AtDropoff':
-        return 4; // Phase 4: Unloading & Proof of Delivery (PoD)
+        return 4; // Phase 4: Unloading & Proof of Delivery
       case 'Delivered':
       case 'Completed':
         return 5; // Phase 5: Completed
@@ -192,14 +194,31 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   };
 
   const phase = getPhaseNumber(job.status);
-  const firstStop = job.deliveryStops && job.deliveryStops.length > 0 ? job.deliveryStops[0] : null;
 
-  // Determine active Map coordinates based on Phase Level
+  // Multi-Drop Stops Resolution
+  const stops = job.deliveryStops && job.deliveryStops.length > 0
+    ? job.deliveryStops
+    : [{ sequence: 1, address: 'Delivery Address', latitude: 6.9221, longitude: 79.8712, recipientName: job.pickupContactName }];
+
+  const currentStop = stops[activeStopIndex] || stops[0];
+  const totalStops = stops.length;
+  const isFinalStop = activeStopIndex >= totalStops - 1;
+
+  // Determine Map Coordinates
   const isDropoffMap = phase >= 3;
-  const mapOriginLat = isDropoffMap ? (job.pickupLatitude || 6.9271) : 6.9271;
-  const mapOriginLng = isDropoffMap ? (job.pickupLongitude || 79.8612) : 79.8612;
-  const mapDestLat = isDropoffMap ? (firstStop?.latitude || 6.9221) : (job.pickupLatitude || 6.9271);
-  const mapDestLng = isDropoffMap ? (firstStop?.longitude || 79.8712) : (job.pickupLongitude || 79.8612);
+  const mapDestLat = isDropoffMap ? (currentStop.latitude || 6.9221) : (job.pickupLatitude || 6.9271);
+  const mapDestLng = isDropoffMap ? (currentStop.longitude || 79.8712) : (job.pickupLongitude || 79.8612);
+  const mapAddressLabel = isDropoffMap ? `Stop ${activeStopIndex + 1}/${totalStops}: ${currentStop.address}` : job.pickupAddress;
+
+  const handleNextStopOrComplete = () => {
+    if (!isFinalStop) {
+      const nextIdx = activeStopIndex + 1;
+      setActiveStopIndex(nextIdx);
+      Alert.alert(`📍 Arrived Stop ${activeStopIndex + 1}`, `Unloaded at Stop ${activeStopIndex + 1}. Map advancing to Stop ${nextIdx + 1}: ${stops[nextIdx]?.address || 'Next Stop'}`);
+    } else {
+      setShowPodModal(true);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -212,7 +231,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
           <Text style={styles.linkText}>← Back to Dashboard</Text>
         </Pressable>
 
-        {/* Status Stepper Header */}
+        {/* Workflow Phase Stepper */}
         <View style={styles.stepperContainer}>
           {['1. Pickup', '2. Load', '3. Transit', '4. Dropoff', '5. Done'].map((stepLabel, idx) => {
             const stepNum = idx + 1;
@@ -231,46 +250,44 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
           })}
         </View>
 
-        {/* Phase Header Card */}
+        {/* Header Banner */}
         <View style={styles.phaseHeaderCard}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={styles.phaseTitle}>
-              {phase === 1 && '🚘 Phase 1: Heading to Customer Pickup'}
-              {phase === 2 && '📦 Phase 2: Loading Cargo at Pickup'}
-              {phase === 3 && '🛣️ Phase 3: En-Route to Delivery Site'}
-              {phase === 4 && '📍 Phase 4: Delivery Unloading & PoD'}
-              {phase === 5 && '✅ Phase 5: Delivery Completed'}
+              {phase === 1 && '🚘 Step 1: Heading to Customer Pickup'}
+              {phase === 2 && '📦 Step 2: Loading Cargo at Pickup'}
+              {phase === 3 && `🛣️ Step 3: En-Route to Delivery (Stop ${activeStopIndex + 1}/${totalStops})`}
+              {phase === 4 && `📍 Step 4: Unloading at Stop ${activeStopIndex + 1}/${totalStops}`}
+              {phase === 5 && '✅ Step 5: Multi-Drop Delivery Completed'}
             </Text>
             <View style={[styles.phaseBadge, { backgroundColor: phase === 5 ? GREEN : ORANGE }]}>
               <Text style={styles.phaseBadgeText}>{job.status}</Text>
             </View>
           </View>
-
-          <Text style={styles.jobNumberSub}>Booking #{job.bookingNumber}</Text>
+          <Text style={styles.jobNumberSub}>Booking #{job.bookingNumber} • {totalStops} Delivery Stop(s)</Text>
         </View>
 
-        {/* Phase Map View */}
+        {/* Dynamic Map & Navigation Card */}
         <View style={styles.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={styles.cardLabel}>
-              {isDropoffMap ? '🗺️ Delivery Site Map (Unload Location)' : '🗺️ Pickup Location Map'}
+              {isDropoffMap ? `🗺️ Delivery Stop ${activeStopIndex + 1} of ${totalStops} Map` : '🗺️ Customer Pickup Location Map'}
             </Text>
             <Pressable
               style={styles.navChip}
-              onPress={() => openExternalNavigation(mapDestLat, mapDestLng, isDropoffMap ? firstStop?.address : job.pickupAddress)}>
+              onPress={() => openExternalNavigation(mapDestLat, mapDestLng, mapAddressLabel)}>
               <Text style={styles.navChipText}>🗺️ Open Maps</Text>
             </Pressable>
           </View>
 
-          <Text style={styles.value}>
-            {isDropoffMap ? (firstStop?.address || 'Delivery Address') : (job.pickupAddress || 'Pickup Address')}
-          </Text>
+          <Text style={styles.value}>{mapAddressLabel}</Text>
 
+          {/* Map View */}
           <View style={styles.mapBox}>
             {Platform.OS === 'web' ? (
               // @ts-ignore
               <iframe
-                title="Phase Map"
+                title="Dynamic Navigation Map"
                 width="100%"
                 height="100%"
                 frameBorder="0"
@@ -281,7 +298,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               <View style={styles.mapNativeFallback}>
                 <Text style={{ fontSize: 32, marginBottom: 4 }}>{isDropoffMap ? '📦 ➔ 📍' : '🚘 ➔ 📍'}</Text>
                 <Text style={{ color: ORANGE, fontWeight: 'bold' }}>
-                  {isDropoffMap ? 'Delivery Stop Coordinates' : 'Customer Pickup Coordinates'}
+                  {isDropoffMap ? `Stop ${activeStopIndex + 1} GPS Location` : 'Customer Pickup GPS Location'}
                 </Text>
                 <Text style={{ color: 'white', fontSize: 12, marginTop: 2 }}>
                   Lat: {mapDestLat.toFixed(5)}, Lng: {mapDestLng.toFixed(5)}
@@ -292,16 +309,43 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
           <Pressable
             style={styles.activeNavBtn}
-            onPress={() => openExternalNavigation(mapDestLat, mapDestLng, isDropoffMap ? firstStop?.address : job.pickupAddress)}>
+            onPress={() => openExternalNavigation(mapDestLat, mapDestLng, mapAddressLabel)}>
             <Text style={styles.activeNavBtnText}>
-              {isDropoffMap ? '🗺️ Turn-by-Turn Navigation to Delivery' : '🗺️ Turn-by-Turn Navigation to Pickup'}
+              {isDropoffMap ? `🗺️ Navigate to Stop ${activeStopIndex + 1} (${currentStop.address})` : '🗺️ Navigate to Customer Pickup Address'}
             </Text>
           </Pressable>
         </View>
 
-        {/* Earnings Card */}
+        {/* Multi-Drop Stop Stepper Bar (Only shown during transit/delivery phase) */}
+        {isDropoffMap && totalStops > 1 && (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>📍 Multi-Drop Route Stops ({totalStops} Total)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+              {stops.map((st: any, idx: number) => {
+                const isCurrent = idx === activeStopIndex;
+                const isPassed = idx < activeStopIndex;
+                return (
+                  <Pressable
+                    key={st.id || idx}
+                    style={[
+                      styles.stopChip,
+                      isCurrent && styles.stopChipActive,
+                      isPassed && styles.stopChipPassed,
+                    ]}
+                    onPress={() => setActiveStopIndex(idx)}>
+                    <Text style={[styles.stopChipText, (isCurrent || isPassed) && { color: 'white' }]}>
+                      {isPassed ? '✓ Stop ' : 'Stop '}{idx + 1}: {st.address?.split(',')[0] || `Stop ${idx + 1}`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Net Driver Earnings */}
         <View style={styles.earningsCard}>
-          <Text style={styles.earningsLabel}>NET DRIVER PAYOUT</Text>
+          <Text style={styles.earningsLabel}>NET DRIVER EARNINGS</Text>
           <Text style={styles.earningsValue}>
             LKR {Math.round(job.driverEarnings || 0).toLocaleString()}
           </Text>
@@ -310,14 +354,13 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
           </Text>
         </View>
 
-        {/* Phase-Specific Workflow Details & Action Buttons */}
+        {/* Workflow Actions */}
         {!isAccepted ? (
           <Pressable style={styles.acceptBtn} onPress={acceptJob} disabled={busy}>
             {busy ? <ActivityIndicator color="white" /> : <Text style={styles.acceptBtnText}>✓ Accept Job Request</Text>}
           </Pressable>
         ) : (
           <View style={styles.workflowSection}>
-            {/* Live GPS Broadcast Button */}
             {!isCompleted && (
               <Pressable style={[styles.gpsBtn, gpsActive && styles.gpsBtnActive]} onPress={startGpsBroadcast}>
                 <Text style={styles.gpsBtnText}>
@@ -326,22 +369,22 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               </Pressable>
             )}
 
-            {/* PHASE 1 ACTION */}
+            {/* PICKUP STEP 1 */}
             {phase === 1 && (
               <View style={styles.phaseCard}>
-                <Text style={styles.phaseCardTitle}>🚘 Phase 1: En-Route to Customer Pickup</Text>
-                <Text style={styles.phaseCardSub}>Customer Contact: {job.pickupContactName || 'Customer'} ({job.pickupContactPhone || 'N/A'})</Text>
+                <Text style={styles.phaseCardTitle}>🚘 Step 1: Head to Customer Pickup Location</Text>
+                <Text style={styles.phaseCardSub}>Customer: {job.pickupContactName || 'Customer'} ({job.pickupContactPhone || 'N/A'})</Text>
                 <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('EnRoute')} disabled={busy}>
                   <Text style={styles.primaryActionBtnText}>🚘 Start Journey to Pickup Location</Text>
                 </Pressable>
               </View>
             )}
 
-            {/* PHASE 2 ACTION */}
+            {/* PICKUP STEP 2 (LOADING) */}
             {phase === 2 && (
               <View style={styles.phaseCard}>
-                <Text style={styles.phaseCardTitle}>📦 Phase 2: Loading Cargo at Pickup</Text>
-                <Text style={styles.phaseCardSub}>Cargo Specs: {job.cargoType} • Weight: {job.cargoWeightKg || 500}kg • Helpers: {job.numberOfHelpers || 0}</Text>
+                <Text style={styles.phaseCardTitle}>📦 Step 2: Load Cargo into Truck</Text>
+                <Text style={styles.phaseCardSub}>Cargo: {job.cargoType} • Weight: {job.cargoWeightKg || 500}kg • Helpers: {job.numberOfHelpers || 0}</Text>
                 {job.status === 'EnRoute' && (
                   <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('Arrived')} disabled={busy}>
                     <Text style={styles.primaryActionBtnText}>📍 Arrived at Customer Pickup Location</Text>
@@ -354,43 +397,41 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
                 )}
                 {job.status === 'Loading' && (
                   <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('InTransit')} disabled={busy}>
-                    <Text style={styles.primaryActionBtnText}>🚚 Goods Loaded - Start Journey to Unload Site</Text>
+                    <Text style={styles.primaryActionBtnText}>🚚 Cargo Loaded - Start Journey to Delivery Dropoffs</Text>
                   </Pressable>
                 )}
               </View>
             )}
 
-            {/* PHASE 3 ACTION */}
-            {phase === 3 && (
+            {/* MULTI-DROP DELIVERY (TRANSIT & DROPOFF) */}
+            {(phase === 3 || phase === 4) && (
               <View style={styles.phaseCard}>
-                <Text style={styles.phaseCardTitle}>🛣️ Phase 3: En-Route to Unload Location</Text>
-                <Text style={styles.phaseCardSub}>Unload Address: {firstStop?.address || 'Delivery location'}</Text>
-                <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('AtDropoff')} disabled={busy}>
-                  <Text style={styles.primaryActionBtnText}>📍 Arrived at Delivery / Unload Location</Text>
+                <Text style={styles.phaseCardTitle}>
+                  📍 Delivery Stop {activeStopIndex + 1} of {totalStops}: {currentStop.address}
+                </Text>
+                <Text style={styles.phaseCardSub}>
+                  Recipient: {currentStop.recipientName || job.pickupContactName || 'Recipient'} ({currentStop.recipientPhone || 'N/A'})
+                </Text>
+
+                <Pressable style={[styles.primaryActionBtn, { backgroundColor: isFinalStop ? GREEN : ORANGE }]} onPress={handleNextStopOrComplete} disabled={busy}>
+                  <Text style={styles.primaryActionBtnText}>
+                    {isFinalStop
+                      ? '✍️ Unload Final Stop & Capture PoD'
+                      : `📍 Unload at Stop ${activeStopIndex + 1} (Advance to Stop ${activeStopIndex + 2})`}
+                  </Text>
                 </Pressable>
               </View>
             )}
 
-            {/* PHASE 4 ACTION */}
-            {phase === 4 && (
-              <View style={styles.phaseCard}>
-                <Text style={styles.phaseCardTitle}>✍️ Phase 4: Delivery Unloading & PoD Verification</Text>
-                <Text style={styles.phaseCardSub}>Recipient: {firstStop?.recipientName || job.pickupContactName || 'Recipient'}</Text>
-                <Pressable style={[styles.primaryActionBtn, { backgroundColor: GREEN }]} onPress={() => setShowPodModal(true)} disabled={busy}>
-                  <Text style={styles.primaryActionBtnText}>✍️ Capture Proof of Delivery (PoD) & Complete</Text>
-                </Pressable>
-              </View>
-            )}
-
-            {/* PHASE 5 COMPLETED SUMMARY */}
+            {/* COMPLETED PHASE */}
             {phase === 5 && (
               <View style={styles.completedCard}>
                 <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 6 }}>🎉</Text>
-                <Text style={styles.completedTitle}>Trip Completed Successfully!</Text>
+                <Text style={styles.completedTitle}>All {totalStops} Delivery Stops Completed!</Text>
                 <Text style={styles.completedSub}>Net Payout of LKR {Math.round(job.driverEarnings || 0).toLocaleString()} credited to your wallet.</Text>
                 
                 <View style={styles.podProofBox}>
-                  <Text style={styles.podProofTitle}>✅ Proof of Delivery Verified</Text>
+                  <Text style={styles.podProofTitle}>✅ Proof of Delivery (PoD) Verified</Text>
                   <Text style={styles.podProofSub}>Electronic Recipient Signature & Timestamp Recorded</Text>
                 </View>
 
@@ -407,7 +448,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
           <View style={podStyles.overlay}>
             <View style={podStyles.modalCard}>
               <Text style={podStyles.modalTitle}>✍️ Proof of Delivery (PoD)</Text>
-              <Text style={podStyles.modalSub}>Capture recipient signature & cargo dropoff photo</Text>
+              <Text style={podStyles.modalSub}>Capture final recipient signature & cargo dropoff photo</Text>
 
               <Text style={podStyles.label}>Recipient Full Name</Text>
               <TextInput
@@ -435,7 +476,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               <TextInput
                 style={[podStyles.input, { height: 50 }]}
                 multiline
-                placeholder="Cargo checked and delivered safely..."
+                placeholder="Cargo checked and delivered safely across all stops..."
                 value={podNotes}
                 onChangeText={setPodNotes}
               />
@@ -487,6 +528,11 @@ const styles = StyleSheet.create({
   value: { fontSize: 13, color: '#1A2B4A', marginTop: 2, marginBottom: 8, fontWeight: '600' },
   navChip: { backgroundColor: ORANGE, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   navChipText: { color: 'white', fontSize: 10, fontWeight: '800' },
+
+  stopChip: { backgroundColor: '#F4F7FB', borderWidth: 1, borderColor: '#D8E0EA', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8 },
+  stopChipActive: { backgroundColor: ORANGE, borderColor: ORANGE },
+  stopChipPassed: { backgroundColor: GREEN, borderColor: GREEN },
+  stopChipText: { fontSize: 11, fontWeight: '800', color: NAVY },
 
   mapBox: { height: 200, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#D8E0EA', marginBottom: 10 },
   mapNativeFallback: { flex: 1, backgroundColor: NAVY, justifyContent: 'center', alignItems: 'center', padding: 12 },
