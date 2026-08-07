@@ -1,0 +1,33 @@
+# .gitignore for TruckMe (.NET + React Native Expo)
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# .NET Build outputs
+**/bin/
+**/obj/
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Temp
+.env*.local
+*.tmp
