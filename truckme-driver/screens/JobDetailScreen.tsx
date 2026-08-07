@@ -19,7 +19,6 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [gpsTimer, setGpsTimer] = useState<any>(null);
   const [gpsActive, setGpsActive] = useState(false);
 
   // Multi-Drop Stop Tracking State
@@ -45,10 +44,53 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
   useEffect(() => {
     load();
-    return () => {
-      if (gpsTimer) clearInterval(gpsTimer);
-    };
   }, []);
+
+  const postGpsPoint = async (currentStatus?: string) => {
+    try {
+      const baseLat = 6.9271;
+      const baseLng = 79.8612;
+      const lat = baseLat + (Math.random() - 0.5) * 0.02;
+      const lng = baseLng + (Math.random() - 0.5) * 0.02;
+
+      await client.post('/api/tracking', {
+        bookingId: jobId,
+        driverId: driver.id,
+        latitude: lat,
+        longitude: lng,
+        speedKph: 25 + Math.random() * 30,
+        headingDegrees: Math.random() * 360,
+        status: currentStatus || job?.status || 'EnRoute',
+      });
+      console.log('[GPS] Automated broadcast posted for job', jobId);
+    } catch (e: any) {
+      console.warn('[GPS] Automated broadcast failed:', e?.message);
+    }
+  };
+
+  // AUTOMATED GPS BROADCAST EFFECT:
+  // Runs automatically whenever job is active (status !== Pending/Delivered/Cancelled)
+  useEffect(() => {
+    if (!job) return;
+
+    const isActiveTrip = job.status !== 'Pending' && job.status !== 'Delivered' && job.status !== 'Cancelled';
+
+    if (isActiveTrip) {
+      setGpsActive(true);
+      postGpsPoint(job.status); // Post immediately upon status change
+
+      const timer = setInterval(() => {
+        postGpsPoint(job.status);
+      }, 10000); // Auto broadcast every 10 seconds
+
+      return () => {
+        clearInterval(timer);
+        setGpsActive(false);
+      };
+    } else {
+      setGpsActive(false);
+    }
+  }, [job?.status, jobId]);
 
   const openExternalNavigation = (destLat?: number, destLng?: number, label?: string) => {
     const targetLat = destLat || job?.pickupLatitude || 6.9271;
@@ -73,7 +115,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
       });
       await load();
       onAccepted?.();
-      Alert.alert('Accepted!', 'Job assigned to you. Map focused on pickup location.');
+      Alert.alert('Accepted!', 'Job assigned to you. Automatic GPS tracking started.');
     } catch (e: any) {
       Alert.alert('Failed', e?.response?.data?.message || e?.message);
     } finally {
@@ -115,40 +157,6 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
     }
   };
 
-  const postGpsPoint = async (status?: string) => {
-    try {
-      const baseLat = 6.9271;
-      const baseLng = 79.8612;
-      const lat = baseLat + (Math.random() - 0.5) * 0.02;
-      const lng = baseLng + (Math.random() - 0.5) * 0.02;
-
-      await client.post('/api/tracking', {
-        bookingId: jobId,
-        driverId: driver.id,
-        latitude: lat,
-        longitude: lng,
-        speedKph: 25 + Math.random() * 30,
-        headingDegrees: Math.random() * 360,
-        status: status || job?.status || 'EnRoute',
-      });
-    } catch (e: any) {}
-  };
-
-  const startGpsBroadcast = () => {
-    if (gpsTimer) {
-      clearInterval(gpsTimer);
-      setGpsTimer(null);
-      setGpsActive(false);
-      Alert.alert('GPS stopped', 'Location updates paused');
-      return;
-    }
-    postGpsPoint();
-    const timer = setInterval(() => postGpsPoint(), 10000);
-    setGpsTimer(timer);
-    setGpsActive(true);
-    Alert.alert('GPS started', 'Posting location every 10 seconds');
-  };
-
   if (loading) {
     return (
       <View style={styles.center}>
@@ -176,18 +184,18 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
     switch (status) {
       case 'Assigned':
       case 'Accepted':
-        return 1; // Phase 1: Heading to Pickup
+        return 1;
       case 'EnRoute':
       case 'Arrived':
       case 'Loading':
-        return 2; // Phase 2: Loading Cargo at Pickup
+        return 2;
       case 'InTransit':
-        return 3; // Phase 3: En-Route to Delivery Unload Locations
+        return 3;
       case 'AtDropoff':
-        return 4; // Phase 4: Unloading & Proof of Delivery
+        return 4;
       case 'Delivered':
       case 'Completed':
-        return 5; // Phase 5: Completed
+        return 5;
       default:
         return 1;
     }
@@ -231,6 +239,13 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
           <Text style={styles.linkText}>← Back to Dashboard</Text>
         </Pressable>
 
+        {/* Automated Live GPS Broadcast Indicator Bar */}
+        {gpsActive && (
+          <View style={styles.autoGpsBar}>
+            <Text style={styles.autoGpsText}>📡 Live Driver GPS Broadcasting Automatically to Customer</Text>
+          </View>
+        )}
+
         {/* Workflow Phase Stepper */}
         <View style={styles.stepperContainer}>
           {['1. Pickup', '2. Load', '3. Transit', '4. Dropoff', '5. Done'].map((stepLabel, idx) => {
@@ -256,7 +271,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
             <Text style={styles.phaseTitle}>
               {phase === 1 && '🚘 Step 1: Heading to Customer Pickup'}
               {phase === 2 && '📦 Step 2: Loading Cargo at Pickup'}
-              {phase === 3 && `🛣️ Step 3: En-Route to Delivery (Stop ${activeStopIndex + 1}/${totalStops})`}
+              {phase === 3 && `流域 Step 3: En-Route to Delivery (Stop ${activeStopIndex + 1}/${totalStops})`}
               {phase === 4 && `📍 Step 4: Unloading at Stop ${activeStopIndex + 1}/${totalStops}`}
               {phase === 5 && '✅ Step 5: Multi-Drop Delivery Completed'}
             </Text>
@@ -316,7 +331,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
           </Pressable>
         </View>
 
-        {/* Multi-Drop Stop Stepper Bar (Only shown during transit/delivery phase) */}
+        {/* Multi-Drop Stop Stepper Bar */}
         {isDropoffMap && totalStops > 1 && (
           <View style={styles.card}>
             <Text style={styles.cardLabel}>📍 Multi-Drop Route Stops ({totalStops} Total)</Text>
@@ -361,14 +376,6 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
           </Pressable>
         ) : (
           <View style={styles.workflowSection}>
-            {!isCompleted && (
-              <Pressable style={[styles.gpsBtn, gpsActive && styles.gpsBtnActive]} onPress={startGpsBroadcast}>
-                <Text style={styles.gpsBtnText}>
-                  {gpsActive ? '⏸️ Stop GPS Broadcast' : '📡 Start Live GPS Broadcast to Customer'}
-                </Text>
-              </Pressable>
-            )}
-
             {/* PICKUP STEP 1 */}
             {phase === 1 && (
               <View style={styles.phaseCard}>
@@ -508,6 +515,9 @@ const styles = StyleSheet.create({
   backBtnText: { color: ORANGE, fontWeight: '800' },
   linkText: { color: ORANGE, fontWeight: '800', fontSize: 14 },
 
+  autoGpsBar: { backgroundColor: GREEN, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginBottom: 12, alignItems: 'center' },
+  autoGpsText: { color: 'white', fontWeight: '800', fontSize: 11 },
+
   stepperContainer: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: 'white', padding: 12, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#D8E0EA' },
   stepItem: { alignItems: 'center', flex: 1 },
   stepCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#E8EDF3', justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
@@ -548,9 +558,6 @@ const styles = StyleSheet.create({
   acceptBtnText: { color: 'white', fontWeight: '900', fontSize: 16 },
 
   workflowSection: { marginTop: 4 },
-  gpsBtn: { backgroundColor: NAVY, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginBottom: 12 },
-  gpsBtnActive: { backgroundColor: GREEN },
-  gpsBtnText: { color: 'white', fontWeight: '800', fontSize: 12 },
 
   phaseCard: { backgroundColor: 'white', borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: NAVY },
   phaseCardTitle: { fontSize: 14, fontWeight: '800', color: NAVY, marginBottom: 4 },
