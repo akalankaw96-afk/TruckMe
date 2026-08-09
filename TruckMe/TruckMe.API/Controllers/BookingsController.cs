@@ -148,6 +148,24 @@ public class BookingsController : ControllerBase
 
         string bookingNum = $"TB-{booking.CreatedAt:yyMMdd}-{booking.Id.ToString()[..4].ToUpper()}";
 
+        // Trigger automated push notification to online drivers
+        _ = Task.Run(async () =>
+        {
+            var onlineDrivers = await _context.Drivers
+                .Where(d => d.IsOnline && !string.IsNullOrEmpty(d.FcmToken))
+                .ToListAsync();
+
+            foreach (var driver in onlineDrivers)
+            {
+                await NotificationsController.SendExpoPushNotificationAsync(
+                    driver.FcmToken!,
+                    "🚛 New Transport Job Nearby!",
+                    $"New booking #{bookingNum} near {booking.PickupAddress}. Tap to view job details & accept.",
+                    new { bookingId = booking.Id, status = "Pending" }
+                );
+            }
+        });
+
         return Ok(new
         {
             booking = new
@@ -317,6 +335,21 @@ public class BookingsController : ControllerBase
         driver.Status = DriverStatus.OnJob;
         await _context.SaveChangesAsync();
 
+        // Trigger automated push notification to customer
+        _ = Task.Run(async () =>
+        {
+            var customerUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == booking.CustomerId);
+            if (!string.IsNullOrEmpty(customerUser?.FcmToken))
+            {
+                await NotificationsController.SendExpoPushNotificationAsync(
+                    customerUser.FcmToken,
+                    "🚘 Driver Assigned!",
+                    $"A driver accepted your transport booking #{booking.Id.ToString()[..8].ToUpper()} and is heading to pickup.",
+                    new { bookingId = booking.Id, status = "Assigned" }
+                );
+            }
+        });
+
         return Ok(new { message = "Driver assigned successfully", bookingId = booking.Id, driverId = driver.Id });
     }
 
@@ -339,6 +372,21 @@ public class BookingsController : ControllerBase
                 booking.CompletedAt = DateTime.UtcNow;
             }
             await _context.SaveChangesAsync();
+
+            // Trigger automated push notification to customer
+            _ = Task.Run(async () =>
+            {
+                var customerUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == booking.CustomerId);
+                if (!string.IsNullOrEmpty(customerUser?.FcmToken))
+                {
+                    await NotificationsController.SendExpoPushNotificationAsync(
+                        customerUser.FcmToken,
+                        $"🚚 Booking Update: {parsedStatus}",
+                        $"Your transport booking #{booking.Id.ToString()[..8].ToUpper()} status is now {parsedStatus}.",
+                        new { bookingId = booking.Id, status = parsedStatus.ToString() }
+                    );
+                }
+            });
         }
 
         return Ok(new { message = "Status updated successfully", status = booking.Status.ToString() });
@@ -360,6 +408,21 @@ public class BookingsController : ControllerBase
             booking.CancellationReason = $"PoD Notes: {dto.Notes}";
         }
         await _context.SaveChangesAsync();
+
+        // Trigger automated push notification to customer for PoD completion
+        _ = Task.Run(async () =>
+        {
+            var customerUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == booking.CustomerId);
+            if (!string.IsNullOrEmpty(customerUser?.FcmToken))
+            {
+                await NotificationsController.SendExpoPushNotificationAsync(
+                    customerUser.FcmToken,
+                    "✅ Delivery Completed & PoD Verified!",
+                    $"Goods delivered successfully for booking #{booking.Id.ToString()[..8].ToUpper()}. Tap to view signature receipt.",
+                    new { bookingId = booking.Id, status = "Delivered" }
+                );
+            }
+        });
 
         return Ok(new {
             message = "Proof of Delivery submitted successfully",

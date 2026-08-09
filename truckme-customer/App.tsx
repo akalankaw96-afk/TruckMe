@@ -27,16 +27,35 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [selectedBooking] = useState<any | null>(null);
 
+  const registerPushToken = async (userId: string) => {
+    try {
+      const demoToken = `ExponentPushToken[customer_${userId.substring(0, 8)}]`;
+      await client.post('/api/notifications/register-token', {
+        userId: userId,
+        pushToken: demoToken,
+      });
+      console.log('[Push] Registered token for customer:', userId);
+    } catch (e) {
+      console.warn('[Push] Registration error:', e);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const token = await getStoredToken();
       const cached = await getStoredUser();
-      if (token && cached) setUser(cached);
+      if (token && cached) {
+        setUser(cached);
+        registerPushToken(cached.id);
+      }
       setLoading(false);
     })();
   }, []);
 
-  const handleLogin = (u: AuthUser) => setUser(u);
+  const handleLogin = (u: AuthUser) => {
+    setUser(u);
+    registerPushToken(u.id);
+  };
   const handleLogout = () => setUser(null);
 
   if (loading) {

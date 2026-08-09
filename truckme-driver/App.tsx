@@ -27,12 +27,27 @@ export default function App() {
   const [driver, setDriver] = useState<DriverProfile | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
 
+  const registerPushToken = async (driverId: string, userId: string) => {
+    try {
+      const demoToken = `ExponentPushToken[driver_${driverId.substring(0, 8)}]`;
+      await client.post('/api/notifications/register-token', {
+        driverId: driverId,
+        userId: userId,
+        pushToken: demoToken,
+      });
+      console.log('[Push] Registered token for driver:', driverId);
+    } catch (e) {
+      console.warn('[Push] Registration error:', e);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const token = await getStoredToken();
       const cached = await getStoredUser();
       if (token && cached && cached.role === 'Driver') {
         setUser(cached);
+        registerPushToken(cached.id, cached.id);
       }
       setLoading(false);
     })();
