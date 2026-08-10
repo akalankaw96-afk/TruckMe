@@ -1,0 +1,13 @@
+{
+  "name": "truckme-admin",
+  "version": "1.0.0",
+  "description": "TruckMe Fleet Control & Master Executive Web Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

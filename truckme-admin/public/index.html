@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TruckMe | Admin Fleet Control & Master Executive Dashboard</title>
+  <!-- Google Fonts & Leaflet CSS for Live Fleet Map -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #0B132B;
+      --bg-card: #1C2541;
+      --navy: #1A2B4A;
+      --orange: #F5A623;
+      --orange-hover: #E09012;
+      --green: #27AE60;
+      --red: #EB5757;
+      --blue: #2F80ED;
+      --text-main: #FFFFFF;
+      --text-muted: #8B9BB4;
+      --border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navbar */
+    header {
+      background: rgba(28, 37, 65, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      font-size: 28px;
+    }
+
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #FFFFFF, var(--orange));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .nav-stats-pill {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(39, 174, 96, 0.15);
+      border: 1px solid var(--green);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--green);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--green);
+      box-shadow: 0 0 10px var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    /* Container */
+    .container {
+      flex: 1;
+      padding: 32px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* KPI Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(245, 166, 35, 0.4);
+    }
+
+    .kpi-title {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .kpi-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .kpi-icon-bg {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      font-size: 44px;
+      opacity: 0.15;
+    }
+
+    /* Tabs Bar */
+    .tabs-header {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      background: var(--orange);
+      color: var(--navy);
+    }
+
+    /* Tab Contents */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Live Fleet Map Section */
+    #map-container {
+      height: 600px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Pending KYC Approvals Grid */
+    .kyc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 24px;
+    }
+
+    .kyc-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .kyc-user-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .kyc-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--orange);
+      color: var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .kyc-name { font-size: 16px; font-weight: 800; }
+    .kyc-phone { font-size: 12px; color: var(--text-muted); }
+
+    .kyc-license-img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    .kyc-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .kyc-meta-label { color: var(--text-muted); font-weight: 600; }
+    .kyc-meta-val { font-weight: 700; color: var(--orange); }
+
+    .kyc-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-approve {
+      flex: 1;
+      background: var(--green);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+
+    .btn-reject {
+      background: rgba(235, 87, 87, 0.15);
+      color: var(--red);
+      border: 1px solid var(--red);
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Bookings Audit Table */
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 16px 20px;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      font-weight: 700;
+    }
+
+    td {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 13px;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .status-tag {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 800;
+      display: inline-block;
+    }
+
+    .status-Delivered { background: rgba(39, 174, 96, 0.2); color: var(--green); }
+    .status-Assigned { background: rgba(47, 128, 237, 0.2); color: var(--blue); }
+    .status-Pending { background: rgba(245, 166, 35, 0.2); color: var(--orange); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header>
+    <div class="brand">
+      <span class="brand-icon">🚛</span>
+      <div>
+        <div class="brand-title">TruckMe Admin</div>
+        <div class="brand-sub">Fleet Control & Operations Master</div>
+      </div>
+    </div>
+
+    <div class="nav-stats-pill">
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span>API Live Connected</span>
+      </div>
+      <button onclick="fetchData()" style="background: var(--orange); color: var(--navy); border: none; padding: 8px 16px; border-radius: 8px; font-weight: 800; cursor: pointer;">
+        🔄 Refresh Live Feed
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- KPI Analytics Cards Grid -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-title">Total Platform Revenue</div>
+        <div class="kpi-value" id="kpi-revenue">LKR 0</div>
+        <div class="kpi-sub" id="kpi-commission">Commission: LKR 0</div>
+        <div class="kpi-icon-bg">💰</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-title">Active Fleet Online</div>
+        <div class="kpi-value" id="kpi-active-fleet">0 Drivers</div>
+        <div class="kpi-sub" id="kpi-active-trips">10 Active Trips</div>
+        <div class="kpi-icon-bg">📡</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-title">Completed Deliveries</div>
+        <div class="kpi-value" id="kpi-completed">0 Trips</div>
+        <div class="kpi-sub" id="kpi-total-bookings">Out of 0 Bookings</div>
+        <div class="kpi-icon-bg">📦</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-title">Pending KYC Approvals</div>
+        <div class="kpi-value" id="kpi-pending-kyc" style="color: var(--orange);">0 Applicants</div>
+        <div class="kpi-sub">Driver Verification Queue</div>
+        <div class="kpi-icon-bg">📜</div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs-header">
+      <button class="tab-btn active" onclick="switchTab('map')">🗺️ Live Fleet Map</button>
+      <button class="tab-btn" onclick="switchTab('kyc')">📜 Driver License Verification Queue (<span id="tab-kyc-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('bookings')">📋 Global Bookings Audit Log</button>
+    </div>
+
+    <!-- Tab 1: Live Fleet Map -->
+    <div id="tab-map" class="tab-content active">
+      <div id="map-container"></div>
+    </div>
+
+    <!-- Tab 2: Driver KYC Verification -->
+    <div id="tab-kyc" class="tab-content">
+      <div class="kyc-grid" id="kyc-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Tab 3: Global Bookings Audit Log -->
+    <div id="tab-bookings" class="tab-content">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Booking #</th>
+              <th>Customer</th>
+              <th>Pickup Address</th>
+              <th>Driver Partner</th>
+              <th>Total Fare</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="bookings-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5084/api/admin';
+    let map = null;
+    let markersGroup = null;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      event.target.classList.add('active');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+
+      if (tabId === 'map') {
+        setTimeout(() => map.invalidateSize(), 200);
+      }
+    }
+
+    function initMap() {
+      // Default centered on Colombo, Sri Lanka
+      map = L.map('map-container').setView([6.9271, 79.8612], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      markersGroup = L.layerGroup().addTo(map);
+    }
+
+    async function fetchData() {
+      try {
+        // 1. Dashboard Stats
+        const sRes = await fetch(`${API_BASE}/dashboard-stats`);
+        const stats = await sRes.json();
+
+        document.getElementById('kpi-revenue').innerText = `LKR ${Math.round(stats.totalRevenue).toLocaleString()}`;
+        document.getElementById('kpi-commission').innerText = `Platform 15% Comm: LKR ${Math.round(stats.platformCommission).toLocaleString()}`;
+        document.getElementById('kpi-active-fleet').innerText = `${stats.onlineDrivers} Online`;
+        document.getElementById('kpi-active-trips').innerText = `${stats.activeDeliveries} Active Trips In Progress`;
+        document.getElementById('kpi-completed').innerText = `${stats.completedDeliveries} Trips`;
+        document.getElementById('kpi-total-bookings').innerText = `Out of ${stats.totalBookings} Total Bookings`;
+        document.getElementById('kpi-pending-kyc').innerText = `${stats.pendingApprovals} Applicants`;
+        document.getElementById('tab-kyc-count').innerText = stats.pendingApprovals;
+
+        // 2. Live Fleet Map Data
+        const fRes = await fetch(`${API_BASE}/live-fleet`);
+        const fleet = await fRes.json();
+
+        markersGroup.clearLayers();
+        fleet.forEach(driver => {
+          const lat = driver.latitude || 6.9271;
+          const lng = driver.longitude || 79.8612;
+
+          const customIcon = L.divIcon({
+            className: 'custom-map-pin',
+            html: `<div style="background:#F5A623; color:#1A2B4A; border:2px solid white; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">🚛</div>`,
+            iconSize: [36, 36]
+          });
+
+          const popupContent = `
+            <div style="font-family:'Plus Jakarta Sans'; color:#1A2B4A; padding:4px;">
+              <strong style="font-size:14px;">${driver.driverName}</strong><br/>
+              <span style="color:#5A6B85; font-size:12px;">📞 ${driver.phone}</span><br/>
+              <span style="color:#27AE60; font-weight:800; font-size:12px;">🚛 ${driver.vehicleType} (${driver.vehiclePlateNumber})</span><br/>
+              <span style="font-size:11px; color:#F5A623;">⭐ ${driver.ratingAverage.toFixed(1)} Rating</span>
+            </div>
+          `;
+
+          L.marker([lat, lng], { icon: customIcon })
+            .addTo(markersGroup)
+            .bindPopup(popupContent);
+        });
+
+        // 3. Driver KYC Verification Queue
+        const kRes = await fetch(`${API_BASE}/drivers/pending-approval`);
+        const kycList = await kRes.json();
+        const kycContainer = document.getElementById('kyc-container');
+
+        if (kycList.length === 0) {
+          kycContainer.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:40px; color: var(--text-muted); font-weight:700;">✅ No pending driver license approvals. All drivers are verified!</div>`;
+        } else {
+          kycContainer.innerHTML = kycList.map(d => `
+            <div class="kyc-card">
+              <div class="kyc-user-row">
+                <div class="kyc-avatar">${d.fullName[0] || 'D'}</div>
+                <div>
+                  <div class="kyc-name">${d.fullName}</div>
+                  <div class="kyc-phone">📞 ${d.phone || 'N/A'} • ${d.email || 'Driver Partner'}</div>
+                </div>
+              </div>
+              <img class="kyc-license-img" src="${d.licenseImageUrl}" alt="License Document" />
+              <div class="kyc-meta">
+                <div><span class="kyc-meta-label">License #:</span> <span class="kyc-meta-val">${d.licenseNumber}</span></div>
+                <div><span class="kyc-meta-label">Vehicle Plate:</span> <span class="kyc-meta-val">${d.vehiclePlateNumber}</span></div>
+                <div><span class="kyc-meta-label">Vehicle Class:</span> <span class="kyc-meta-val">${d.vehicleType}</span></div>
+                <div><span class="kyc-meta-label">Status:</span> <span style="color:var(--orange); font-weight:800;">Pending Review</span></div>
+              </div>
+              <div class="kyc-actions">
+                <button class="btn-approve" onclick="verifyDriver('${d.id}', true)">Approve License & Activate</button>
+                <button class="btn-reject" onclick="verifyDriver('${d.id}', false)">Reject</button>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // 4. Global Bookings Table
+        const bRes = await fetch(`${API_BASE}/bookings`);
+        const bookings = await bRes.json();
+        const tableBody = document.getElementById('bookings-table-body');
+
+        tableBody.innerHTML = bookings.slice(0, 15).map(b => `
+          <tr>
+            <td style="font-weight:800; color:var(--orange);">${b.bookingNumber}</td>
+            <td><strong>${b.customerName}</strong><br/><span style="color:var(--text-muted); font-size:11px;">${b.customerPhone}</span></td>
+            <td>📍 ${b.pickupAddress}</td>
+            <td>🚛 ${b.driverName}<br/><span style="color:var(--text-muted); font-size:11px;">${b.vehiclePlate}</span></td>
+            <td style="font-weight:800; color:var(--green);">LKR ${Math.round(b.totalFare).toLocaleString()}</td>
+            <td><span class="status-tag status-${b.status}">${b.status}</span></td>
+            <td style="color:var(--text-muted); font-size:12px;">${new Date(b.createdAt).toLocaleDateString()}</td>
+          </tr>
+        `).join('');
+
+      } catch (err) {
+        console.error('[Admin Dashboard Error]', err);
+      }
+    }
+
+    async function verifyDriver(driverId, approve) {
+      if (!confirm(`Are you sure you want to ${approve ? 'APPROVE' : 'REJECT'} this driver license?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/drivers/${driverId}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isApproved: approve })
+        });
+        const data = await res.json();
+        alert(data.message || 'Driver verification updated!');
+        fetchData();
+      } catch (e) {
+        alert('Failed to update driver status');
+      }
+    }
+
+    window.onload = () => {
+      initMap();
+      fetchData();
+      setInterval(fetchData, 10000); // Auto-refresh every 10 seconds
+    };
+  </script>
+</body>
+</html>
