@@ -330,6 +330,24 @@ public class BookingsController : ControllerBase
             }
         }
 
+        // Strict Single Active Job Enforcement:
+        // Check if driver currently has an active trip in progress
+        var activeJob = await _context.Bookings.FirstOrDefaultAsync(b =>
+            b.DriverId == driver.Id &&
+            b.Id != id &&
+            b.Status != BookingStatus.Pending &&
+            b.Status != BookingStatus.Searching &&
+            b.Status != BookingStatus.Delivered &&
+            b.Status != BookingStatus.Completed &&
+            b.Status != BookingStatus.Cancelled);
+
+        if (activeJob != null)
+        {
+            return BadRequest(new {
+                message = $"You already have an active trip in progress. Please complete your current delivery before accepting another job."
+            });
+        }
+
         booking.DriverId = driver.Id;
         booking.Status = BookingStatus.Assigned;
         driver.Status = DriverStatus.OnJob;

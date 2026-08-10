@@ -168,13 +168,35 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
             <Text style={styles.subSectionTitle}>
               Available jobs {selectedRadius > 0 ? `within ${selectedRadius} km` : 'all'} ({jobs.length})
             </Text>
+            {activeJob && (
+              <View style={styles.activeWarningCard}>
+                <Text style={styles.activeWarningText}>
+                  ℹ️ Complete your active trip (#{activeJob.bookingNumber}) before accepting a new job.
+                </Text>
+              </View>
+            )}
           </View>
         }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(selectedRadius); }} tintColor="#F5A623" />
         }
         renderItem={({ item }) => (
-          <Pressable style={styles.jobCard} onPress={() => onSelectJob(item.id)}>
+          <Pressable
+            style={[styles.jobCard, activeJob && { opacity: 0.7 }]}
+            onPress={() => {
+              if (activeJob) {
+                Alert.alert(
+                  'Active Trip in Progress 🚚',
+                  `You are currently executing trip ${activeJob.bookingNumber}. Please complete your active delivery before accepting another job.`,
+                  [
+                    { text: 'View Active Route', onPress: () => onSelectJob(activeJob.id) },
+                    { text: 'OK', style: 'cancel' }
+                  ]
+                );
+              } else {
+                onSelectJob(item.id);
+              }
+            }}>
             <View style={styles.jobHeader}>
               <Text style={styles.bookingNumber}>{item.bookingNumber || 'Job Request'}</Text>
               <View style={styles.distanceBadgeBox}>
@@ -297,4 +319,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 15, fontWeight: '700', color: NAVY, marginBottom: 6 },
   emptySub: { fontSize: 12, color: '#8895A8', textAlign: 'center' },
+
+  activeWarningCard: { backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: ORANGE, borderRadius: 8, padding: 10, marginBottom: 12 },
+  activeWarningText: { fontSize: 12, color: NAVY, fontWeight: '700', textAlign: 'center' },
 });
