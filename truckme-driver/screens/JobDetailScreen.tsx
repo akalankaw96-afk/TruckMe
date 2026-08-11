@@ -360,13 +360,27 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
         {/* Net Driver Earnings */}
         <View style={styles.earningsCard}>
-          <Text style={styles.earningsLabel}>NET DRIVER EARNINGS</Text>
+          <Text style={styles.earningsLabel}>NET DRIVER EARNINGS (85%)</Text>
           <Text style={styles.earningsValue}>
-            LKR {Math.round(job.driverEarnings || 0).toLocaleString()}
+            LKR {Math.round(job.driverEarnings || job.driverPayout || (job.totalFare * 0.85) || 0).toLocaleString()}
           </Text>
           <Text style={styles.earningsSub}>
-            Total Fare: LKR {Math.round(job.totalFare || 0).toLocaleString()} • Distance: {Math.round(job.estimatedDistanceKm || 12)} km
+            Total Fare: LKR {Math.round(job.totalFare || 0).toLocaleString()} • Commission (15%): LKR {Math.round((job.totalFare * 0.15) || 0).toLocaleString()}
           </Text>
+
+          {job.paymentMethod === 'Card' ? (
+            <View style={{ backgroundColor: '#27AE60', padding: 8, borderRadius: 6, marginTop: 8, alignItems: 'center' }}>
+              <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>
+                🟢 PAID ONLINE (CARD) — DO NOT COLLECT CASH
+              </Text>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: '#F5A623', padding: 8, borderRadius: 6, marginTop: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#1A2B4A', fontWeight: '800', fontSize: 12 }}>
+                💵 COLLECT CASH FROM CUSTOMER: LKR {Math.round(job.totalFare || 0).toLocaleString()}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Workflow Actions */}

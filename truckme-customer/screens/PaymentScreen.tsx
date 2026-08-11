@@ -77,19 +77,23 @@ export default function PaymentScreen({
     }
     setSubmitting(true);
     try {
-      const txnId = `PAY-${Date.now().toString().slice(-8)}`;
-      await client.post('/api/payments', {
+      const txnId = `TXN-PAYHERE-${Date.now().toString().slice(-8)}`;
+      
+      // Step 1: Initiate checkout session
+      await client.post('/api/payments/checkout', { bookingId });
+
+      // Step 2: Verify & settle card payment with 15% commission split
+      const res = await client.post('/api/payments/verify', {
         bookingId,
-        amount: booking.totalFare,
-        method: 'Card',
-        provider: 'PayHere / Visa / Mastercard',
         transactionId: txnId,
+        paymentGatewaySignature: 'VERIFIED_VISA_MASTERCARD_HASH'
       });
-      Alert.alert('Payment Successful! 💳', 'Your card payment has been processed successfully.');
+
+      Alert.alert('Payment Successful! 💳', res.data?.message || 'Your card payment has been processed successfully.');
       await loadBooking();
       onPaid();
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Online payment failed');
+      Alert.alert('Error', e?.response?.data?.message || 'Online card payment failed');
     } finally {
       setSubmitting(false);
     }
