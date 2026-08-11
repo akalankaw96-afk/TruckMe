@@ -9,6 +9,11 @@ const getApiBaseUrl = () => {
     return CUSTOM_PUBLIC_API_URL;
   }
 
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+    const hostname = window.location.hostname;
+    return `http://${hostname}:5084`;
+  }
+
   const hostUri = Constants.expoConfig?.hostUri || (Constants.manifest as any)?.debuggerHost;
   if (hostUri) {
     const ip = hostUri.split(':')[0];

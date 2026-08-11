@@ -270,10 +270,8 @@ export default function LoginScreen({ onLogin }: Props) {
               {mode === 'signin' ? "New driver partner? Join TruckMe" : "Already registered? Sign in"}
             </Text>
           </Pressable>
-        </View>
-      </ScrollView>
 
-      {/* Forgot Password Modal */}
+          {/* Forgot Password Modal */}
       {showForgotModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>

@@ -297,10 +297,8 @@ export default function LoginScreen({ onLogin }: Props) {
               {mode === 'signin' ? "Don't have an account? Sign up here" : "Already have an account? Sign in"}
             </Text>
           </Pressable>
-        </View>
-      </ScrollView>
 
-      {/* Forgot Password Modal */}
+          {/* Forgot Password Modal */}
       {showForgotModal && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
