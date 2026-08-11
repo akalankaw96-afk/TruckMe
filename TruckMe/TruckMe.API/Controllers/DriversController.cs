@@ -59,18 +59,19 @@ public class DriversController : ControllerBase
             {
                 Id = id,
                 UserId = user.Id,
-                VehiclePlateNumber = "WP-CAB-8899",
+                VehiclePlateNumber = string.Empty,
                 VehicleType = VehicleSize.OneTon,
-                LicenseNumber = "B9876543",
-                Status = DriverStatus.Online,
-                IsOnline = true,
-                IsApproved = true,
-                RatingAverage = 4.9m,
-                TotalRatings = 42,
+                LicenseNumber = string.Empty,
+                Status = DriverStatus.Offline,
+                IsOnline = false,
+                IsApproved = false,
+                RatingAverage = 5.0m,
+                TotalRatings = 0,
                 TotalCompletedJobs = 0,
                 TotalEarnings = 0m,
                 CurrentLatitude = 6.9271m,
-                CurrentLongitude = 79.8612m
+                CurrentLongitude = 79.8612m,
+                CreatedAt = DateTime.UtcNow
             };
 
             await _context.Drivers.AddAsync(driver);
@@ -86,21 +87,28 @@ public class DriversController : ControllerBase
 
         int realCompletedTrips = completedBookings.Count;
         decimal realTotalEarnings = completedBookings.Sum(b => b.DriverPayout > 0 ? b.DriverPayout : b.TotalFare * 0.85m);
-        decimal realRating = driver.RatingAverage > 0 ? driver.RatingAverage : 4.9m;
+        
+        var reviews = await _context.Reviews
+            .Where(r => r.DriverId == driver.Id || r.DriverId == driver.UserId)
+            .ToListAsync();
+        decimal realRating = reviews.Count > 0 ? (decimal)reviews.Average(r => r.Rating) : (driver.RatingAverage > 0 ? driver.RatingAverage : 5.0m);
+
+        DateTime createdDate = driver.User?.CreatedAt ?? driver.CreatedAt;
+        string joiningDateStr = createdDate != default ? createdDate.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd");
 
         return Ok(new
         {
             id = driver.Id,
             userId = driver.UserId,
-            fullName = driver.User?.FullName ?? "Driver User",
+            fullName = driver.User?.FullName ?? "Driver Partner",
             email = driver.User?.Email ?? "driver@truckme.lk",
-            phoneNumber = driver.User?.PhoneNumber ?? "+94778889999",
-            vehiclePlateNumber = driver.VehiclePlateNumber,
+            phoneNumber = driver.User?.PhoneNumber ?? "+94770000000",
+            vehiclePlateNumber = !string.IsNullOrWhiteSpace(driver.VehiclePlateNumber) ? driver.VehiclePlateNumber : "Not Configured",
             vehicleType = driver.VehicleType.ToString(),
-            licenseNumber = driver.LicenseNumber,
+            licenseNumber = !string.IsNullOrWhiteSpace(driver.LicenseNumber) ? driver.LicenseNumber : "Pending Verification",
             licenseExpiryDate = "2028-12-31",
-            nicNumber = "199012345678",
-            joiningDate = "2025-01-15",
+            nicNumber = "Pending Verification",
+            joiningDate = joiningDateStr,
             isOnline = driver.IsOnline,
             isAvailable = driver.IsOnline,
             status = driver.IsOnline ? "Online" : (driver.IsApproved ? "Offline" : "PendingApproval"),

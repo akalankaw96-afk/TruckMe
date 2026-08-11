@@ -98,17 +98,17 @@ const getUserId = async (): Promise<string | null> => {
           userId: raw.userId || userId,
           fullName: raw.fullName || 'Driver Partner',
           email: raw.email || 'driver@truckme.lk',
-          phoneNumber: raw.phoneNumber || '+94778889999',
-          approvalStatus: raw.approvalStatus || raw.status || 'Approved',
-          isOnline: raw.isOnline ?? true,
-          isAvailable: raw.isAvailable ?? true,
-          averageRating: raw.averageRating || raw.ratingAverage || 4.9,
+          phoneNumber: raw.phoneNumber || '',
+          approvalStatus: raw.approvalStatus || raw.status || 'PendingApproval',
+          isOnline: raw.isOnline ?? false,
+          isAvailable: raw.isAvailable ?? false,
+          averageRating: raw.averageRating || raw.ratingAverage || 5.0,
           totalTrips: realTrips,
           totalEarnings: realEarnings,
-          licenseNumber: raw.licenseNumber || 'B9876543',
-          licenseExpiryDate: raw.licenseExpiryDate || '2028-12-31',
-          nicNumber: raw.nicNumber || '199012345678',
-          joiningDate: raw.joiningDate || '2025-01-15'
+          licenseNumber: raw.licenseNumber || 'Pending Verification',
+          licenseExpiryDate: raw.licenseExpiryDate || 'Pending',
+          nicNumber: raw.nicNumber || 'Pending Verification',
+          joiningDate: raw.joiningDate || new Date().toISOString().split('T')[0]
         });
 
         try {
@@ -116,30 +116,10 @@ const getUserId = async (): Promise<string | null> => {
           if (Array.isArray(vRes.data) && vRes.data.length > 0) {
             setVehicles(vRes.data);
           } else {
-            setVehicles([{
-              id: 'v1',
-              registrationNumber: raw.vehiclePlateNumber || 'WP-CAB-8899',
-              make: 'Isuzu',
-              model: 'Elf 1 Ton',
-              year: 2022,
-              color: 'White',
-              capacityKg: 1000,
-              approvalStatus: 'Approved',
-              vehicleTypeName: '1 Ton Truck'
-            }]);
+            setVehicles([]);
           }
         } catch {
-          setVehicles([{
-            id: 'v1',
-            registrationNumber: raw.vehiclePlateNumber || 'WP-CAB-8899',
-            make: 'Isuzu',
-            model: 'Elf 1 Ton',
-            year: 2022,
-            color: 'White',
-            capacityKg: 1000,
-            approvalStatus: 'Approved',
-            vehicleTypeName: '1 Ton Truck'
-          }]);
+          setVehicles([]);
         }
       }
     } catch (e: any) {
