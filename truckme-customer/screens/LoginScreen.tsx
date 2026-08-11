@@ -27,6 +27,13 @@ export default function LoginScreen({ onLogin }: Props) {
   const [loading, setLoading] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
+  // Forgot Password OTP state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [resetStep, setResetStep] = useState<1 | 2>(1);
+  const [resetEmail, setResetEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
   const parseErrorMessage = (e: any): string => {
     const data = e?.response?.data;
     if (!data) return e?.message || 'Network error';
@@ -35,6 +42,47 @@ export default function LoginScreen({ onLogin }: Props) {
       return fieldErrors ? `${data.message}: ${fieldErrors}` : data.message;
     }
     return data.message || 'Validation error';
+  };
+
+  const handleRequestOtp = async () => {
+    if (!resetEmail.trim()) {
+      Alert.alert('Required', 'Please enter your account email address.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await client.post('/api/auth/forgot-password', { email: resetEmail.trim() });
+      Alert.alert('OTP Sent 📲', res.data?.message || 'Verification code sent to your email.');
+      if (res.data?.otpCode) setOtpCode(res.data.otpCode);
+      setResetStep(2);
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to request password reset');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!otpCode.trim() || !newPassword.trim()) {
+      Alert.alert('Required', 'Enter the 6-digit OTP code and your new password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await client.post('/api/auth/reset-password', {
+        email: resetEmail.trim(),
+        otpCode: otpCode.trim(),
+        newPassword: newPassword.trim(),
+      });
+      Alert.alert('Password Reset Success 🎉', res.data?.message || 'You can now sign in with your new password.');
+      setShowForgotModal(false);
+      setEmail(resetEmail.trim());
+      setPassword(newPassword.trim());
+    } catch (e: any) {
+      Alert.alert('Reset Failed ⚠️', e?.response?.data?.message || 'Invalid verification code');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignIn = async () => {
@@ -220,6 +268,18 @@ export default function LoginScreen({ onLogin }: Props) {
             secureTextEntry
           />
 
+          {mode === 'signin' && (
+            <Pressable
+              style={{ marginTop: 8, alignSelf: 'flex-end' }}
+              onPress={() => {
+                setResetEmail(email);
+                setResetStep(1);
+                setShowForgotModal(true);
+              }}>
+              <Text style={{ fontSize: 12, color: ORANGE, fontWeight: '700' }}>Forgot password?</Text>
+            </Pressable>
+          )}
+
           {mode === 'signin' ? (
             <Pressable style={[styles.button, loading && { opacity: 0.6 }]} onPress={handleSignIn} disabled={loading}>
               {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Sign in</Text>}
@@ -237,6 +297,70 @@ export default function LoginScreen({ onLogin }: Props) {
               {mode === 'signin' ? "Don't have an account? Sign up here" : "Already have an account? Sign in"}
             </Text>
           </Pressable>
+        </View>
+      </ScrollView>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>🔑 Forgot Password</Text>
+            <Text style={styles.modalSub}>
+              {resetStep === 1
+                ? 'Enter your account email address to receive a 6-digit verification code.'
+                : `Enter the 6-digit OTP code sent to ${resetEmail} and your new password.`}
+            </Text>
+
+            {resetStep === 1 ? (
+              <>
+                <Text style={styles.label}>Email Address *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="kasun@gmail.com"
+                  placeholderTextColor="#8895A8"
+                  value={resetEmail}
+                  onChangeText={setResetEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+                <Pressable style={styles.button} onPress={handleRequestOtp} disabled={loading}>
+                  {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Send Verification Code →</Text>}
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>6-Digit OTP Verification Code *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="849201"
+                  placeholderTextColor="#8895A8"
+                  value={otpCode}
+                  onChangeText={setOtpCode}
+                  keyboardType="number-pad"
+                />
+
+                <Text style={styles.label}>New Password *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="At least 6 characters"
+                  placeholderTextColor="#8895A8"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                />
+
+                <Pressable style={styles.button} onPress={handleResetPassword} disabled={loading}>
+                  {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Reset Password & Sign In ✓</Text>}
+                </Pressable>
+              </>
+            )}
+
+            <Pressable style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setShowForgotModal(false)}>
+              <Text style={{ fontSize: 13, color: '#8895A8', fontWeight: '700' }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
           <Text style={styles.hint}>Connected to {API_BASE_URL}</Text>
         </View>
@@ -285,4 +409,12 @@ const styles = StyleSheet.create({
 
   errorBox: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#EF4444', borderRadius: 8, padding: 12, marginBottom: 12 },
   errorBoxText: { color: '#991B1B', fontSize: 13, fontWeight: '700', lineHeight: 18 },
+
+  modalOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20, zIndex: 1000,
+  },
+  modalCard: { backgroundColor: 'white', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: NAVY, marginBottom: 6 },
+  modalSub: { fontSize: 12, color: '#5A6B85', marginBottom: 16, lineHeight: 18 },
 });

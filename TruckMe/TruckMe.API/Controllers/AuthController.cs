@@ -88,9 +88,83 @@ public class AuthController : ControllerBase
             driver.FcmToken = dto.PushToken;
         }
 
-        await context.SaveChangesAsync(default);
-        return Ok(new { message = "Push token registered successfully" });
+        await context.SaveChangesAsync();
+        return Ok(new { message = "Push token saved successfully" });
     }
+
+    private static readonly Dictionary<string, string> _resetOtps = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Generates a 6-digit OTP verification code for password reset.
+    /// </summary>
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto, [FromServices] TruckMe.Application.Common.Interfaces.IApplicationDbContext context)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Email))
+            return BadRequest(new { message = "Email address or phone number is required" });
+
+        var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(context.Users, u => u.Email == dto.Email.Trim().ToLower() || u.PhoneNumber == dto.Email.Trim());
+        if (user == null)
+        {
+            return BadRequest(new { message = "No account found with this email address or phone number" });
+        }
+
+        string otpCode = new Random().Next(100000, 999999).ToString();
+        _resetOtps[user.Email] = otpCode;
+
+        return Ok(new
+        {
+            message = $"Verification code sent to {user.Email}. (Demo OTP Code: {otpCode})",
+            otpCode = otpCode,
+            email = user.Email
+        });
+    }
+
+    /// <summary>
+    /// Resets user password using the 6-digit OTP verification code.
+    /// </summary>
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto, [FromServices] TruckMe.Application.Common.Interfaces.IApplicationDbContext context)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.OtpCode) || string.IsNullOrWhiteSpace(dto.NewPassword))
+            return BadRequest(new { message = "Email, OTP verification code, and new password are required" });
+
+        var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(context.Users, u => u.Email == dto.Email.Trim().ToLower());
+        if (user == null)
+            return BadRequest(new { message = "Account not found" });
+
+        if (!_resetOtps.TryGetValue(user.Email, out var validOtp) || validOtp != dto.OtpCode.Trim())
+        {
+            return BadRequest(new { message = "Invalid or expired OTP verification code" });
+        }
+
+        if (dto.NewPassword.Length < 6)
+        {
+            return BadRequest(new { message = "New password must be at least 6 characters long" });
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        await context.SaveChangesAsync();
+        _resetOtps.Remove(user.Email);
+
+        return Ok(new
+        {
+            message = "Password reset successfully! You can now sign in with your new password.",
+            email = user.Email
+        });
+    }
+}
+
+public class ForgotPasswordDto
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordDto
+{
+    public string Email { get; set; } = string.Empty;
+    public string OtpCode { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }
 
 public class PushTokenRegistrationDto
