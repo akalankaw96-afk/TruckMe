@@ -24,9 +24,22 @@ export default function LoginScreen({ onLogin }: Props) {
   const [vehiclePlate, setVehiclePlate] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
+  const parseErrorMessage = (e: any): string => {
+    const data = e?.response?.data;
+    if (!data) return e?.message || 'Network error';
+    if (data.message && data.errors) {
+      const fieldErrors = Object.values(data.errors).flat().join(' • ');
+      return fieldErrors ? `${data.message}: ${fieldErrors}` : data.message;
+    }
+    return data.message || 'Validation error';
+  };
 
   const login = async () => {
+    setErrorBanner(null);
     if (!email || !password) {
+      setErrorBanner('Enter email and password.');
       Alert.alert('Required', 'Enter email and password');
       return;
     }
@@ -44,17 +57,22 @@ export default function LoginScreen({ onLogin }: Props) {
         await saveAuth(res.data.token, userObj);
         onLogin(userObj);
       } else {
+        setErrorBanner('Invalid login credentials or server response');
         Alert.alert('Login failed', 'Invalid login credentials or server response');
       }
     } catch (e: any) {
-      Alert.alert('Login failed', e?.response?.data?.message || e?.message || 'Network error');
+      const msg = parseErrorMessage(e);
+      setErrorBanner(msg);
+      Alert.alert('Login Failed ⚠️', msg);
     } finally {
       setLoading(false);
     }
   };
 
   const register = async () => {
+    setErrorBanner(null);
     if (!fullName.trim() || !email.trim() || !password || !phoneNumber.trim()) {
+      setErrorBanner('Please fill in all driver registration fields.');
       Alert.alert('Required', 'Please fill in all driver registration fields');
       return;
     }
@@ -85,7 +103,9 @@ export default function LoginScreen({ onLogin }: Props) {
         setMode('signin');
       }
     } catch (e: any) {
-      Alert.alert('Registration failed', e?.response?.data?.message || e?.message || 'Unable to register driver');
+      const msg = parseErrorMessage(e);
+      setErrorBanner(msg);
+      Alert.alert('Registration Error ⚠️', msg);
     } finally {
       setLoading(false);
     }
@@ -115,6 +135,11 @@ export default function LoginScreen({ onLogin }: Props) {
         </View>
 
         <View style={styles.card}>
+          {errorBanner && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorBoxText}>⚠️ {errorBanner}</Text>
+            </View>
+          )}
           {mode === 'register' && (
             <>
               <Text style={styles.label}>Full Name *</Text>
@@ -225,4 +250,7 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: 'white', fontSize: 16, fontWeight: '700' },
   hint: { fontSize: 11, color: '#8895A8', textAlign: 'center', marginTop: 16 },
+
+  errorBox: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#EF4444', borderRadius: 8, padding: 12, marginBottom: 12 },
+  errorBoxText: { color: '#991B1B', fontSize: 13, fontWeight: '700', lineHeight: 18 },
 });
