@@ -63,10 +63,10 @@ export default function DriverVehicleScreen({ onBack }: Props) {
 
   const load = async () => {
     try {
-      const cached = await AsyncStorage.getItem('truckme_driver_user');
-      const uid = cached ? JSON.parse(cached).id : HARDCODED_USER_ID;
+      const cached = await AsyncStorage.getItem('truckme_user');
+      const uid = cached ? (JSON.parse(cached).id || JSON.parse(cached).userId) : '73579068-5fb5-45ce-bce3-59b7ae7f3763';
 
-      // Get driver record (which has the driver.Id, not user.Id)
+      // Get driver record
       const driverRes = await client.get(`/api/drivers/${uid}`);
       const drv = driverRes.data;
       setDriver(drv);
@@ -76,9 +76,20 @@ export default function DriverVehicleScreen({ onBack }: Props) {
       setVehicleTypes(vtRes.data || []);
 
       // Get vehicles for this driver
-      const vRes = await client.get(`/api/vehicles/${drv.id}`);
+      const vRes = await client.get(`/api/vehicles/${drv.id || uid}`);
       const list = vRes.data || [];
-      setVehicle(list[0] || null);
+      if (list.length > 0) {
+        setVehicle(list[0]);
+        setFormData({
+          registrationNumber: list[0].registrationNumber || drv.vehiclePlateNumber || '',
+          make: list[0].make || 'Isuzu',
+          model: list[0].model || 'Elf',
+          year: String(list[0].year || 2022),
+          color: list[0].color || 'White',
+          capacityKg: String(list[0].capacityKg || 1000),
+          vehicleTypeId: list[0].vehicleTypeId || '',
+        });
+      }
     } catch (e: any) {
       console.error('[Vehicle] error:', e);
     } finally {
@@ -90,7 +101,7 @@ export default function DriverVehicleScreen({ onBack }: Props) {
 
   const registerVehicle = async () => {
     if (!formData.registrationNumber || !formData.make || !formData.model) {
-      Alert.alert('Required', 'Registration, make, and model are required');
+      Alert.alert('Required', 'Registration plate number, make, and model are required');
       return;
     }
     if (!driver) {
@@ -102,17 +113,17 @@ export default function DriverVehicleScreen({ onBack }: Props) {
       await client.post('/api/vehicles', {
         driverId: driver.id,
         vehicleTypeId: formData.vehicleTypeId || vehicleTypes[0]?.id,
-        registrationNumber: formData.registrationNumber,
-        make: formData.make,
-        model: formData.model,
+        registrationNumber: formData.registrationNumber.trim().toUpperCase(),
+        make: formData.make.trim(),
+        model: formData.model.trim(),
         year: parseInt(formData.year) || new Date().getFullYear(),
-        color: formData.color,
+        color: formData.color.trim() || 'White',
         capacityKg: parseFloat(formData.capacityKg) || 1000,
       });
-      Alert.alert('Vehicle registered', 'Awaiting admin approval');
+      Alert.alert('Vehicle Updated 🎉', 'Your truck information has been updated and activated successfully!');
       await load();
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed');
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to save vehicle details');
     } finally {
       setSubmitting(false);
     }
@@ -122,55 +133,67 @@ export default function DriverVehicleScreen({ onBack }: Props) {
     return <View style={styles.center}><ActivityIndicator color="#F5A623" size="large" /></View>;
   }
 
-  if (vehicle) {
-    return (
-      <ScrollView style={{ flex: 1, backgroundColor: '#F4F7FB' }} contentContainerStyle={{ padding: 16 }}>
-        <View style={styles.headerCard}>
-          <Text style={styles.emoji}>🚚</Text>
-          <Text style={styles.title}>{vehicle.make} {vehicle.model}</Text>
-          <Text style={styles.regNo}>{vehicle.registrationNumber}</Text>
-          <View style={[styles.statusBadge, {
-            backgroundColor: vehicle.approvalStatus === 'Approved' ? '#27AE60' : '#F39C12'
-          }]}>
-            <Text style={styles.statusText}>
-              {vehicle.approvalStatus === 'Approved' ? '✓ Approved' : '⏳ ' + vehicle.approvalStatus}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Row label="Year" value={String(vehicle.year)} />
-          <Row label="Color" value={vehicle.color || '—'} />
-          <Row label="Capacity" value={`${vehicle.capacityKg} kg`} />
-          <Row label="Status" value={vehicle.status} />
-          {vehicle.insurancePolicyNumber && <Row label="Insurance" value={vehicle.insurancePolicyNumber} />}
-        </View>
-      </ScrollView>
-    );
-  }
-
-  // No vehicle — show registration form
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#F4F7FB' }} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.title}>Register your vehicle</Text>
-      <Text style={styles.subtitle}>Tell us about the truck you drive</Text>
+    <View style={{ flex: 1, backgroundColor: '#F4F7FB' }}>
+      {/* Header Bar */}
+      <View style={styles.topHeader}>
+        <Pressable onPress={onBack} hitSlop={10}>
+          <Text style={styles.backBtnText}>← Back</Text>
+        </Pressable>
+        <Text style={styles.topHeaderTitle}>🚛 Vehicle Information</Text>
+      </View>
 
-      <Field label="Registration number *" value={formData.registrationNumber} onChange={v => setFormData({ ...formData, registrationNumber: v })} placeholder="WP CAB-1234" />
-      <Field label="Make *" value={formData.make} onChange={v => setFormData({ ...formData, make: v })} placeholder="Tata" />
-      <Field label="Model *" value={formData.model} onChange={v => setFormData({ ...formData, model: v })} placeholder="Ace" />
-      <Field label="Year" value={formData.year} onChange={v => setFormData({ ...formData, year: v })} placeholder="2022" keyboardType="number-pad" />
-      <Field label="Color" value={formData.color} onChange={v => setFormData({ ...formData, color: v })} placeholder="White" />
-      <Field label="Capacity (kg)" value={formData.capacityKg} onChange={v => setFormData({ ...formData, capacityKg: v })} placeholder="1000" keyboardType="decimal-pad" />
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {vehicle ? (
+          <>
+            <View style={styles.headerCard}>
+              <Text style={styles.emoji}>🚚</Text>
+              <Text style={styles.title}>{vehicle.make} {vehicle.model}</Text>
+              <Text style={styles.regNo}>Plate #: {vehicle.registrationNumber}</Text>
+              <View style={[styles.statusBadge, {
+                backgroundColor: vehicle.approvalStatus === 'Approved' || vehicle.approvalStatus === 'Online' ? '#27AE60' : '#F39C12'
+              }]}>
+                <Text style={styles.statusText}>
+                  {vehicle.approvalStatus === 'Approved' || vehicle.approvalStatus === 'Online' ? '✓ Verified & Active' : '⏳ ' + vehicle.approvalStatus}
+                </Text>
+              </View>
+            </View>
 
-      <Pressable
-        style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
-        onPress={registerVehicle}
-        disabled={submitting}>
-        {submitting
-          ? <ActivityIndicator color="white" />
-          : <Text style={styles.submitText}>Submit for approval</Text>}
-      </Pressable>
-    </ScrollView>
+            <View style={styles.card}>
+              <Row label="Vehicle Type" value={vehicle.vehicleTypeName || '1 Ton Lorry'} />
+              <Row label="Plate Number" value={vehicle.registrationNumber} />
+              <Row label="Make & Model" value={`${vehicle.make} ${vehicle.model}`} />
+              <Row label="Manufacture Year" value={String(vehicle.year)} />
+              <Row label="Payload Capacity" value={`${vehicle.capacityKg} kg`} />
+              <Row label="Color" value={vehicle.color || 'White'} />
+            </View>
+
+            <Text style={[styles.title, { color: NAVY, fontSize: 18, marginTop: 12 }]}>Update Vehicle Details</Text>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.title, { color: NAVY }]}>Register your vehicle</Text>
+            <Text style={styles.subtitle}>Tell us about the truck or lorry you drive</Text>
+          </>
+        )}
+
+        <Field label="Vehicle License Plate Number *" value={formData.registrationNumber} onChange={v => setFormData({ ...formData, registrationNumber: v })} placeholder="e.g. WP CAB-1234" />
+        <Field label="Vehicle Make (Brand) *" value={formData.make} onChange={v => setFormData({ ...formData, make: v })} placeholder="e.g. Isuzu / Tata / Mahindra" />
+        <Field label="Vehicle Model *" value={formData.model} onChange={v => setFormData({ ...formData, model: v })} placeholder="e.g. Elf / Ace / Dimo Batta" />
+        <Field label="Manufacture Year" value={formData.year} onChange={v => setFormData({ ...formData, year: v })} placeholder="2022" keyboardType="number-pad" />
+        <Field label="Color" value={formData.color} onChange={v => setFormData({ ...formData, color: v })} placeholder="White" />
+        <Field label="Payload Capacity (kg)" value={formData.capacityKg} onChange={v => setFormData({ ...formData, capacityKg: v })} placeholder="1000" keyboardType="decimal-pad" />
+
+        <Pressable
+          style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
+          onPress={registerVehicle}
+          disabled={submitting}>
+          {submitting
+            ? <ActivityIndicator color="white" />
+            : <Text style={styles.submitText}>{vehicle ? 'Save Vehicle Details ✓' : 'Submit Vehicle for Approval →'}</Text>}
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -187,6 +210,10 @@ const NAVY = '#1A2B4A';
 const ORANGE = '#F5A623';
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F7FB' },
+
+  topHeader: { backgroundColor: NAVY, paddingTop: 44, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center' },
+  backBtnText: { fontSize: 16, color: 'white', fontWeight: '800', marginRight: 12 },
+  topHeaderTitle: { fontSize: 18, fontWeight: '800', color: 'white' },
 
   headerCard: {
     backgroundColor: NAVY, padding: 24, borderRadius: 12,
