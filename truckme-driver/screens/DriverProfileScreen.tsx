@@ -62,44 +62,49 @@ export default function DriverProfileScreen({
 
 const getUserId = async (): Promise<string | null> => {
   try {
-    const cached = await AsyncStorage.getItem('truckme_driver_user');
-
-    console.log('Stored user:', cached);
-
+    const cached = await AsyncStorage.getItem('truckme_user');
     if (cached) {
       const user = JSON.parse(cached);
-      console.log('Parsed user:', user);
-      console.log('User ID:', user.id);
-
-      return user.id;
+      return user.id || user.userId || null;
     }
   } catch (err) {
-    console.log(err);
+    console.warn('Error reading truckme_user from storage:', err);
   }
-
   return null;
 };
 
   const load = async () => {
     try {
       let userId = await getUserId();
-      if (!userId) userId = 'f4c15eb0-7fb3-4a89-915f-5113a1d20f22';
+      if (!userId) userId = '73579068-5fb5-45ce-bce3-59b7ae7f3763';
 
       const dRes = await client.get(`/api/drivers/${userId}`);
       if (dRes.data) {
         const raw = dRes.data;
+
+        // Fetch real earnings & trip summary
+        let realEarnings = raw.totalEarnings || 0;
+        let realTrips = raw.totalTrips ?? raw.totalCompletedJobs ?? 0;
+        try {
+          const sRes = await client.get(`/api/payouts/driver/${raw.id || userId}/summary`);
+          if (sRes.data) {
+            realEarnings = sRes.data.totalEarnings ?? realEarnings;
+            realTrips = sRes.data.completedJobsCount ?? realTrips;
+          }
+        } catch {}
+
         setProfile({
           id: raw.id || userId,
           userId: raw.userId || userId,
-          fullName: raw.fullName || 'Driver User',
+          fullName: raw.fullName || 'Driver Partner',
           email: raw.email || 'driver@truckme.lk',
           phoneNumber: raw.phoneNumber || '+94778889999',
           approvalStatus: raw.approvalStatus || raw.status || 'Approved',
           isOnline: raw.isOnline ?? true,
           isAvailable: raw.isAvailable ?? true,
           averageRating: raw.averageRating || raw.ratingAverage || 4.9,
-          totalTrips: raw.totalTrips || raw.totalCompletedJobs || 38,
-          totalEarnings: raw.totalEarnings || 185000,
+          totalTrips: realTrips,
+          totalEarnings: realEarnings,
           licenseNumber: raw.licenseNumber || 'B9876543',
           licenseExpiryDate: raw.licenseExpiryDate || '2028-12-31',
           nicNumber: raw.nicNumber || '199012345678',
@@ -147,16 +152,18 @@ const getUserId = async (): Promise<string | null> => {
   useEffect(() => { load(); }, []);
 
   const toggleOnline = async (value: boolean) => {
-    if (!profile?.userId) return;
+    const targetId = profile?.id || profile?.userId;
+    if (!targetId) return;
     setSavingStatus(true);
     try {
-      await client.patch(`/api/drivers/${profile.userId}/location`, {
+      await client.post(`/api/drivers/${targetId}/status`, { isOnline: value });
+      await client.post(`/api/drivers/${targetId}/location`, {
         latitude: 6.9271,
         longitude: 79.8612,
         isOnline: value,
         isAvailable: value,
       });
-      setProfile({ ...profile, isOnline: value, isAvailable: value });
+      setProfile((prev) => (prev ? { ...prev, isOnline: value, isAvailable: value } : null));
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message || 'Failed to update status');
     } finally {

@@ -67,8 +67,8 @@ public class DriversController : ControllerBase
                 IsApproved = true,
                 RatingAverage = 4.9m,
                 TotalRatings = 42,
-                TotalCompletedJobs = 38,
-                TotalEarnings = 185000m,
+                TotalCompletedJobs = 0,
+                TotalEarnings = 0m,
                 CurrentLatitude = 6.9271m,
                 CurrentLongitude = 79.8612m
             };
@@ -76,6 +76,17 @@ public class DriversController : ControllerBase
             await _context.Drivers.AddAsync(driver);
             await _context.SaveChangesAsync();
         }
+
+        // Calculate real performance metrics from database bookings
+        var completedBookings = await _context.Bookings
+            .AsNoTracking()
+            .Where(b => (b.DriverId == driver.Id || b.DriverId == driver.UserId) &&
+                        (b.Status == BookingStatus.Delivered || b.Status == BookingStatus.Completed))
+            .ToListAsync();
+
+        int realCompletedTrips = completedBookings.Count;
+        decimal realTotalEarnings = completedBookings.Sum(b => b.DriverPayout > 0 ? b.DriverPayout : b.TotalFare * 0.85m);
+        decimal realRating = driver.RatingAverage > 0 ? driver.RatingAverage : 4.9m;
 
         return Ok(new
         {
@@ -92,13 +103,13 @@ public class DriversController : ControllerBase
             joiningDate = "2025-01-15",
             isOnline = driver.IsOnline,
             isAvailable = driver.IsOnline,
-            status = driver.Status.ToString(),
-            approvalStatus = driver.Status.ToString(),
-            ratingAverage = driver.RatingAverage,
-            averageRating = driver.RatingAverage,
-            totalCompletedJobs = driver.TotalCompletedJobs,
-            totalTrips = driver.TotalCompletedJobs,
-            totalEarnings = driver.TotalEarnings
+            status = driver.IsOnline ? "Online" : (driver.IsApproved ? "Offline" : "PendingApproval"),
+            approvalStatus = driver.IsApproved ? "Approved" : "PendingApproval",
+            ratingAverage = realRating,
+            averageRating = realRating,
+            totalCompletedJobs = realCompletedTrips,
+            totalTrips = realCompletedTrips,
+            totalEarnings = realTotalEarnings
         });
     }
 
@@ -251,15 +262,18 @@ public class DriversController : ControllerBase
     /// </summary>
     [HttpPut("{driverId:guid}/status")]
     [HttpPost("{driverId:guid}/status")]
+    [HttpPatch("{driverId:guid}/status")]
     public async Task<IActionResult> UpdateStatus(Guid driverId, [FromBody] UpdateDriverStatusRequest request)
     {
         var driver = await _context.Drivers.FirstOrDefaultAsync(d => d.Id == driverId || d.UserId == driverId);
         if (driver != null)
         {
             driver.IsOnline = request.IsOnline;
+            driver.Status = request.IsOnline ? DriverStatus.Online : DriverStatus.Offline;
             await _context.SaveChangesAsync();
+            return Ok(new { isOnline = driver.IsOnline, status = driver.Status.ToString(), message = $"Driver status updated to {(request.IsOnline ? "Online" : "Offline")}" });
         }
-        return NoContent();
+        return NotFound(new { message = "Driver profile not found" });
     }
 
     /// <summary>
@@ -276,6 +290,7 @@ public class DriversController : ControllerBase
             driver.CurrentLongitude = request.Longitude;
             driver.LastLocationUpdate = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+            return Ok(new { isOnline = driver.IsOnline, message = "Location updated successfully" });
         }
         return NoContent();
     }
