@@ -23,8 +23,21 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterCommand command)
     {
-        var result = await _mediator.Send(command);
-        return Ok(result);
+        try
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (TruckMe.Application.Common.Exceptions.ValidationException ex)
+        {
+            var errors = ex.Errors.SelectMany(kvp => kvp.Value).ToList();
+            string errorMsg = errors.Count > 0 ? string.Join(" ", errors) : "Validation failure";
+            return BadRequest(new { message = errorMsg, errors = ex.Errors });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -33,8 +46,21 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginQuery query)
     {
-        var result = await _mediator.Send(query);
-        return Ok(result);
+        try
+        {
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
+        catch (TruckMe.Application.Common.Exceptions.ValidationException ex)
+        {
+            var errors = ex.Errors.SelectMany(kvp => kvp.Value).ToList();
+            string errorMsg = errors.Count > 0 ? string.Join(" ", errors) : "Invalid credentials";
+            return BadRequest(new { message = errorMsg, errors = ex.Errors });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     /// <summary>
