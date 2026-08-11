@@ -11,6 +11,7 @@ import DriverProfileScreen from './screens/DriverProfileScreen';
 import EarningsScreen from './screens/EarningsScreen';
 import DriverVehicleScreen from './screens/DriverVehicleScreen';
 import ReturnLoadsScreen from './screens/ReturnLoadsScreen';
+import SubscriptionScreen from './screens/SubscriptionScreen';
 import { getStoredToken, getStoredUser } from './api/client';
 import { DriverProfile, DriverUser, Vehicle } from './types';
 
@@ -80,6 +81,17 @@ export default function App() {
                     onLogout={() => setUser(null)}
                     onSelectJob={(id: string) => props.navigation.navigate('JobDetail', { jobId: id })}
                     onOpenProfile={() => props.navigation.navigate('DriverProfile')}
+                    onOpenSubscriptions={() => props.navigation.navigate('Subscriptions')}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen name="Subscriptions" options={{ title: '0% Commission Passes' }}>
+                {(props) => (
+                  <SubscriptionScreen
+                    {...props}
+                    user={user!}
+                    onBack={() => props.navigation.goBack()}
                   />
                 )}
               </Stack.Screen>

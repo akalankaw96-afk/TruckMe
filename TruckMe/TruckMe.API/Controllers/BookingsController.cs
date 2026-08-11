@@ -348,6 +348,12 @@ public class BookingsController : ControllerBase
             });
         }
 
+        bool isVIPSubscriber = SubscriptionsController.HasActiveSubscription(driver.Id);
+        decimal commissionRate = isVIPSubscriber ? 0.0m : 0.15m;
+        booking.CommissionRate = commissionRate;
+        booking.Commission = booking.TotalFare * commissionRate;
+        booking.DriverPayout = booking.TotalFare - booking.Commission;
+
         booking.DriverId = driver.Id;
         booking.Status = BookingStatus.Assigned;
         driver.Status = DriverStatus.OnJob;

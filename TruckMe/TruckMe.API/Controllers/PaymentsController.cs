@@ -105,9 +105,10 @@ public class PaymentsController : ControllerBase
 
         booking.PaymentMethod = PaymentMethod.Card;
         
-        // 15% Platform Commission & 85% Driver Payout calculation
+        // 15% Standard Commission vs 0% Subscription Pass calculation
         decimal totalFare = booking.TotalFare > 0 ? booking.TotalFare : 4500m;
-        decimal commissionRate = 0.15m;
+        bool isSubscribed = booking.DriverId.HasValue && SubscriptionsController.HasActiveSubscription(booking.DriverId.Value);
+        decimal commissionRate = isSubscribed ? 0.0m : 0.15m;
         decimal platformCommission = totalFare * commissionRate;
         decimal driverEarnings = totalFare - platformCommission;
 
