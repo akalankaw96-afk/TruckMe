@@ -409,6 +409,7 @@
     <div class="tabs-header">
       <button class="tab-btn active" onclick="switchTab('map')">🗺️ Live Fleet Map</button>
       <button class="tab-btn" onclick="switchTab('kyc')">📜 Driver License Verification Queue (<span id="tab-kyc-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('payouts')">💸 Driver Payout Requests (<span id="tab-payout-count">0</span>)</button>
       <button class="tab-btn" onclick="switchTab('bookings')">📋 Global Bookings Audit Log</button>
     </div>
 
@@ -424,7 +425,29 @@
       </div>
     </div>
 
-    <!-- Tab 3: Global Bookings Audit Log -->
+    <!-- Tab 3: Driver Bank Payout Requests -->
+    <div id="tab-payouts" class="tab-content">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Request Ref</th>
+              <th>Driver Name</th>
+              <th>Withdrawal Amount</th>
+              <th>Bank Name</th>
+              <th>Account Details</th>
+              <th>Requested Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="payouts-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 4: Global Bookings Audit Log -->
     <div id="tab-bookings" class="tab-content">
       <div class="table-container">
         <table>
@@ -551,7 +574,31 @@
           `).join('');
         }
 
-        // 4. Global Bookings Table
+        // 4. Driver Payout Requests
+        const pRes = await fetch(`http://localhost:5084/api/payouts/admin/pending`);
+        const payoutsList = await pRes.json();
+        document.getElementById('tab-payout-count').innerText = payoutsList.length;
+        const payoutsBody = document.getElementById('payouts-table-body');
+
+        if (payoutsList.length === 0) {
+          payoutsBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted); font-weight:700;">✅ No pending driver bank payout requests.</td></tr>`;
+        } else {
+          payoutsBody.innerHTML = payoutsList.map(p => `
+            <tr>
+              <td style="font-weight:800; color:var(--orange);">${p.referenceNumber}</td>
+              <td><strong>${p.driverName}</strong></td>
+              <td style="font-weight:800; color:var(--green);">LKR ${p.amount.toLocaleString()}</td>
+              <td>🏦 ${p.bankName}</td>
+              <td>Account: <strong>${p.accountNumber}</strong><br/><span style="color:var(--text-muted); font-size:11px;">${p.accountHolderName} (${p.branchName})</span></td>
+              <td style="color:var(--text-muted); font-size:12px;">${new Date(p.requestedAt).toLocaleString()}</td>
+              <td>
+                <button class="btn-approve" style="padding:6px 12px; font-size:12px;" onclick="approvePayout('${p.id}', '${p.driverName}', ${p.amount})">Process Bank Transfer ✓</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+
+        // 5. Global Bookings Table
         const bRes = await fetch(`${API_BASE}/bookings`);
         const bookings = await bRes.json();
         const tableBody = document.getElementById('bookings-table-body');
@@ -587,6 +634,24 @@
         fetchData();
       } catch (e) {
         alert('Failed to update driver status');
+      }
+    }
+
+    async function approvePayout(payoutId, driverName, amount) {
+      const bankRef = prompt(`Enter Sri Lankan Bank Transfer Reference Number for ${driverName} (LKR ${amount.toLocaleString()}):`, `REF-${Math.floor(100000 + Math.random() * 900000)}`);
+      if (!bankRef) return;
+
+      try {
+        const res = await fetch(`http://localhost:5084/api/payouts/admin/${payoutId}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bankReferenceNumber: bankRef })
+        });
+        const data = await res.json();
+        alert(data.message || 'Payout approved and transferred!');
+        fetchData();
+      } catch (e) {
+        alert('Failed to process payout');
       }
     }
 

@@ -82,6 +82,7 @@ export default function App() {
                     onSelectJob={(id: string) => props.navigation.navigate('JobDetail', { jobId: id })}
                     onOpenProfile={() => props.navigation.navigate('DriverProfile')}
                     onOpenSubscriptions={() => props.navigation.navigate('Subscriptions')}
+                    onOpenEarnings={() => props.navigation.navigate('Earnings')}
                   />
                 )}
               </Stack.Screen>

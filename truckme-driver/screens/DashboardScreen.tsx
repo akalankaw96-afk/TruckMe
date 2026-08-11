@@ -12,6 +12,7 @@ interface Props {
   onSelectJob: (jobId: string) => void;
   onOpenProfile?: () => void;
   onOpenSubscriptions?: () => void;
+  onOpenEarnings?: () => void;
   onOpenJob?: (jobId: string) => void;
 }
 
@@ -23,7 +24,7 @@ const RADIUS_OPTIONS = [
   { value: 0, label: 'All Jobs' },
 ];
 
-export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenProfile, onOpenSubscriptions }: Props) {
+export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenProfile, onOpenSubscriptions, onOpenEarnings }: Props) {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [jobs, setJobs] = useState<any[]>([]);
   const [activeJob, setActiveJob] = useState<any | null>(null);
@@ -93,6 +94,10 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
                 <Text style={styles.role}>Driver Partner</Text>
               </View>
               <View style={styles.headerButtons}>
+                <Pressable style={[styles.profileBtn, { backgroundColor: '#10B981' }]} onPress={onOpenEarnings}>
+                  <Text style={[styles.profileBtnText, { color: 'white' }]}>💳 Wallet</Text>
+                </Pressable>
+
                 <Pressable style={styles.profileBtn} onPress={onOpenProfile}>
                   <Text style={styles.profileBtnText}>👤 Profile</Text>
                 </Pressable>
