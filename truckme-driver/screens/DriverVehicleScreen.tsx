@@ -4,7 +4,7 @@ import {
   ActivityIndicator, RefreshControl, Alert, TextInput,
   KeyboardTypeOptions,
 } from 'react-native';
-import client from '../api/client';
+import client, { getStoredUser } from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const HARDCODED_USER_ID = 'YOUR_DRIVER_USER_ID'; // replace
@@ -63,8 +63,12 @@ export default function DriverVehicleScreen({ onBack }: Props) {
 
   const load = async () => {
     try {
-      const cached = await AsyncStorage.getItem('truckme_user');
-      const uid = cached ? (JSON.parse(cached).id || JSON.parse(cached).userId) : '73579068-5fb5-45ce-bce3-59b7ae7f3763';
+      const cachedUser = await getStoredUser();
+      const uid = cachedUser?.id || cachedUser?.userId;
+      if (!uid) {
+        setLoading(false);
+        return;
+      }
 
       // Get driver record
       const driverRes = await client.get(`/api/drivers/${uid}`);

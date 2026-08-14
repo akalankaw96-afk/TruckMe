@@ -28,10 +28,11 @@ interface VehicleType {
 
 
 
-export default function HomeScreen({ user, onLogout, onOpenAddresses, onOpenBookings, onSelectTruck }: Props) {
+export default function HomeScreen({ route, user, onLogout, onOpenAddresses, onOpenBookings, onSelectTruck }: Props) {
   const [trucks, setTrucks] = useState<VehicleType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -46,6 +47,15 @@ export default function HomeScreen({ user, onLogout, onOpenAddresses, onOpenBook
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const msg = route?.params?.toastMessage;
+    if (msg) {
+      setSuccessToast(msg);
+      const timer = setTimeout(() => setSuccessToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [route?.params?.toastMessage]);
 
   const signOut = async () => {
     try {
@@ -68,6 +78,15 @@ export default function HomeScreen({ user, onLogout, onOpenAddresses, onOpenBook
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F7FB' }}>
       <StatusBar barStyle="light-content" backgroundColor="#1A2B4A" />
+
+      {successToast && (
+        <View style={{ backgroundColor: '#27AE60', padding: 14, marginHorizontal: 16, marginTop: 12, borderRadius: 10, borderWidth: 1, borderColor: '#1E6327' }}>
+          <Text style={{ color: 'white', fontWeight: '800', fontSize: 14, textAlign: 'center' }}>
+            {successToast}
+          </Text>
+        </View>
+      )}
+
       <FlatList
         data={trucks}
         keyExtractor={(t) => t.id}

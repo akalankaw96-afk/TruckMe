@@ -117,17 +117,26 @@ public class AdminController : ControllerBase
     /// Approves or rejects a driver's KYC license verification.
     /// </summary>
     [HttpPost("drivers/{id:guid}/verify")]
+    [HttpPost("drivers/{id:guid}/approve")]
     public async Task<IActionResult> VerifyDriver(Guid id, [FromBody] VerifyDriverDto dto)
     {
         var driver = await _context.Drivers.FirstOrDefaultAsync(d => d.Id == id || d.UserId == id);
-        if (driver == null) return NotFound("Driver profile not found");
+        if (driver == null) return NotFound(new { message = "Driver profile not found" });
 
         driver.IsApproved = dto.IsApproved;
+        
+        // Update linked vehicle records to Approved
+        var vehicles = await _context.Vehicles.Where(v => v.DriverId == driver.Id || v.DriverId == driver.UserId).ToListAsync();
+        foreach (var v in vehicles)
+        {
+            v.ApprovalStatus = dto.IsApproved ? "Approved" : "PendingApproval";
+        }
+
         await _context.SaveChangesAsync();
 
         return Ok(new
         {
-            message = dto.IsApproved ? "Driver license approved successfully" : "Driver verification updated",
+            message = dto.IsApproved ? "Driver partner & vehicle approved successfully!" : "Driver verification status updated",
             driverId = driver.Id,
             isApproved = driver.IsApproved
         });

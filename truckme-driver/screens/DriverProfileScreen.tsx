@@ -4,7 +4,7 @@ import {
   Pressable, Alert, ActivityIndicator, StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import client from '../api/client';
+import client, { getStoredUser, clearAuth } from '../api/client';
 
 interface Props {
   onBack: () => void;
@@ -52,35 +52,22 @@ export default function DriverProfileScreen({
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState(false);
 
-//   const getUserId = async (): Promise<string | null> => {
-//     try {
-//       const cached = await AsyncStorage.getItem('truckme_user');
-//       if (cached) return JSON.parse(cached).id;
-//     } catch {}
-//     return null;
-//   };
-
-const getUserId = async (): Promise<string | null> => {
-  try {
-    const cached = await AsyncStorage.getItem('truckme_user');
-    if (cached) {
-      const user = JSON.parse(cached);
-      return user.id || user.userId || null;
-    }
-  } catch (err) {
-    console.warn('Error reading truckme_user from storage:', err);
-  }
-  return null;
-};
-
   const load = async () => {
     try {
-      let userId = await getUserId();
-      if (!userId) userId = '73579068-5fb5-45ce-bce3-59b7ae7f3763';
+      const cachedUser = await getStoredUser();
+      const userId = cachedUser?.id || cachedUser?.userId;
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
 
       const dRes = await client.get(`/api/drivers/${userId}`);
       if (dRes.data) {
         const raw = dRes.data;
+
+        // Ensure logged-in user full name and email are strictly displayed
+        const fullName = cachedUser?.fullName || raw.fullName || 'Driver Partner';
+        const email = cachedUser?.email || raw.email || 'driver@truckme.lk';
 
         // Fetch real earnings & trip summary
         let realEarnings = raw.totalEarnings || 0;
@@ -96,8 +83,8 @@ const getUserId = async (): Promise<string | null> => {
         setProfile({
           id: raw.id || userId,
           userId: raw.userId || userId,
-          fullName: raw.fullName || 'Driver Partner',
-          email: raw.email || 'driver@truckme.lk',
+          fullName: fullName,
+          email: email,
           phoneNumber: raw.phoneNumber || '',
           approvalStatus: raw.approvalStatus || raw.status || 'PendingApproval',
           isOnline: raw.isOnline ?? false,

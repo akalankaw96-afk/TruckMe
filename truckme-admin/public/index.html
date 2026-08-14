@@ -344,9 +344,10 @@
       display: inline-block;
     }
 
-    .status-Delivered { background: rgba(39, 174, 96, 0.2); color: var(--green); }
-    .status-Assigned { background: rgba(47, 128, 237, 0.2); color: var(--blue); }
-    .status-Pending { background: rgba(245, 166, 35, 0.2); color: var(--orange); }
+    .status-Delivered, .status-Completed { background: rgba(39, 174, 96, 0.2); color: var(--green); }
+    .status-Assigned, .status-InTransit { background: rgba(47, 128, 237, 0.2); color: var(--blue); }
+    .status-Pending, .status-Searching { background: rgba(245, 166, 35, 0.2); color: var(--orange); }
+    .status-Loading, .status-Arrived, .status-ArrivedAtPickup { background: rgba(245, 166, 35, 0.3); color: #F5A623; border: 1px solid #F5A623; }
   </style>
 </head>
 <body>
@@ -472,7 +473,18 @@
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:5084/api/admin';
+    const getApiBaseUrl = () => {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:5084';
+      }
+      if (window.location.hostname.includes('192.168.')) {
+        return `http://${window.location.hostname}:5084`;
+      }
+      return 'https://pads-mrs-harbour-nick.trycloudflare.com';
+    };
+
+    const API_HOST = getApiBaseUrl();
+    const API_BASE = `${API_HOST}/api/admin`;
     let map = null;
     let markersGroup = null;
 
@@ -575,7 +587,7 @@
         }
 
         // 4. Driver Payout Requests
-        const pRes = await fetch(`http://localhost:5084/api/payouts/admin/pending`);
+        const pRes = await fetch(`${API_HOST}/api/payouts/admin/pending`);
         const payoutsList = await pRes.json();
         document.getElementById('tab-payout-count').innerText = payoutsList.length;
         const payoutsBody = document.getElementById('payouts-table-body');
@@ -642,7 +654,7 @@
       if (!bankRef) return;
 
       try {
-        const res = await fetch(`http://localhost:5084/api/payouts/admin/${payoutId}/approve`, {
+        const res = await fetch(`${API_HOST}/api/payouts/admin/${payoutId}/approve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ bankReferenceNumber: bankRef })

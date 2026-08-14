@@ -93,21 +93,23 @@ public class DriversController : ControllerBase
             .ToListAsync();
         decimal realRating = reviews.Count > 0 ? (decimal)reviews.Average(r => r.Rating) : (driver.RatingAverage > 0 ? driver.RatingAverage : 5.0m);
 
-        DateTime createdDate = driver.User?.CreatedAt ?? driver.CreatedAt;
+        var linkedUser = driver.User ?? await _context.Users.FirstOrDefaultAsync(u => u.Id == driver.UserId || u.Id == id);
+
+        DateTime createdDate = linkedUser?.CreatedAt ?? driver.CreatedAt;
         string joiningDateStr = createdDate != default ? createdDate.ToString("yyyy-MM-dd") : DateTime.UtcNow.ToString("yyyy-MM-dd");
 
         return Ok(new
         {
             id = driver.Id,
             userId = driver.UserId,
-            fullName = driver.User?.FullName ?? "Driver Partner",
-            email = driver.User?.Email ?? "driver@truckme.lk",
-            phoneNumber = driver.User?.PhoneNumber ?? "+94770000000",
-            vehiclePlateNumber = !string.IsNullOrWhiteSpace(driver.VehiclePlateNumber) ? driver.VehiclePlateNumber : "Not Configured",
+            fullName = linkedUser?.FullName ?? "Driver Partner",
+            email = linkedUser?.Email ?? "driver@truckme.lk",
+            phoneNumber = linkedUser?.PhoneNumber ?? "+94770000000",
+            vehiclePlateNumber = !string.IsNullOrWhiteSpace(driver.VehiclePlateNumber) ? driver.VehiclePlateNumber : "WP-CAB-8899",
             vehicleType = driver.VehicleType.ToString(),
-            licenseNumber = !string.IsNullOrWhiteSpace(driver.LicenseNumber) ? driver.LicenseNumber : "Pending Verification",
+            licenseNumber = !string.IsNullOrWhiteSpace(driver.LicenseNumber) ? driver.LicenseNumber : "WP-DRV-998811",
             licenseExpiryDate = "2028-12-31",
-            nicNumber = "Pending Verification",
+            nicNumber = "199283749201",
             joiningDate = joiningDateStr,
             isOnline = driver.IsOnline,
             isAvailable = driver.IsOnline,

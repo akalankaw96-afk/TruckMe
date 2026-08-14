@@ -176,7 +176,7 @@ export default function App() {
                       userId={user.id}
                       bookingId={bookingId}
                       onBack={() => props.navigation.goBack()}
-                      onRated={() => props.navigation.navigate('MyBookings')}
+                      onRated={() => props.navigation.navigate('Home', { toastMessage: '🌟 Thank you! Driver rating submitted & trip completed successfully.' })}
                     />
                   );
                 }}
@@ -201,7 +201,7 @@ export default function App() {
                       bookingId={bookingId}
                       amount={amount}
                       onBack={() => props.navigation.goBack()}
-                      onPaid={() => props.navigation.navigate('MyBookings')}
+                      onPaid={() => props.navigation.navigate('Home', { toastMessage: '🎉 Payment completed! Booking finished successfully.' })}
                     />
                   );
                 }}

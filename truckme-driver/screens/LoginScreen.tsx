@@ -84,6 +84,33 @@ export default function LoginScreen({ onLogin }: Props) {
     }
   };
 
+  const handleUpgradeToDriver = async (userId: string) => {
+    setLoading(true);
+    try {
+      const res = await client.post('/api/auth/upgrade-to-driver', {
+        userId,
+        vehiclePlate: vehiclePlate || 'WP-CAB-9988',
+        vehicleType: vehicleType || '1-Ton Truck',
+      });
+      const driverUser = res.data;
+      const userObj = {
+        id: driverUser.userId,
+        email: driverUser.email,
+        fullName: driverUser.fullName,
+        role: driverUser.role,
+      };
+      await saveAuth(driverUser.token, userObj);
+      Alert.alert('Welcome Partner! 🚛', 'Account upgraded to Driver Partner successfully.');
+      onLogin(userObj);
+    } catch (e: any) {
+      const msg = parseErrorMessage(e);
+      setErrorBanner(msg);
+      Alert.alert('Upgrade Error', msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const login = async () => {
     setErrorBanner(null);
     if (!email || !password) {
@@ -102,6 +129,25 @@ export default function LoginScreen({ onLogin }: Props) {
       } : null);
 
       if (res.data?.token && userObj) {
+        if (userObj.role !== 'Driver') {
+          setLoading(false);
+          if (Platform.OS === 'web') {
+            if (window.confirm(`🚛 Driver Account Required\n\nYour account (${userObj.email}) is currently registered as a Customer.\n\nWould you like to upgrade this account to Driver Partner so you can use the Driver App?`)) {
+              handleUpgradeToDriver(userObj.id);
+            }
+          } else {
+            Alert.alert(
+              '🚛 Driver Account Required',
+              `Your account (${userObj.email}) is registered as a Customer.\n\nUpgrade to Driver Partner?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Upgrade to Driver', onPress: () => handleUpgradeToDriver(userObj.id) },
+              ]
+            );
+          }
+          return;
+        }
+
         await saveAuth(res.data.token, userObj);
         onLogin(userObj);
       } else {

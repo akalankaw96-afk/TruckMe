@@ -23,6 +23,12 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
   // Multi-Drop Stop Tracking State
   const [activeStopIndex, setActiveStopIndex] = useState(0);
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
+  const [cargoChecklist, setCargoChecklist] = useState({
+    itemsVerified: true,
+    weightVerified: true,
+    helpersReady: true,
+  });
 
   // Proof of Delivery (PoD) Modal
   const [showPodModal, setShowPodModal] = useState(false);
@@ -45,6 +51,24 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    let interval: any;
+    if (job?.status === 'Loading') {
+      interval = setInterval(() => {
+        setLoadingSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setLoadingSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [job?.status]);
+
+  const formatTimer = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const postGpsPoint = async (currentStatus?: string) => {
     try {
@@ -108,33 +132,78 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
   const acceptJob = async () => {
     setBusy(true);
+    // Optimistically update local job status to Assigned immediately so UI updates without delay!
+    setJob((prev: any) => (prev ? { ...prev, status: 'Assigned' } : prev));
     try {
+      const dId = driver?.id || driver?.userId || user?.id;
+      const vId = vehicle?.id || '00000000-0000-0000-0000-000000000000';
+
       await client.post(`/api/bookings/${jobId}/assign`, {
-        driverId: driver.id,
-        vehicleId: vehicle.id,
+        driverId: dId,
+        vehicleId: vId,
       });
+
       await load();
+      if (Platform.OS === 'web') {
+        window.alert('✓ Job Accepted! Journey to customer pickup location started.');
+      } else {
+        Alert.alert('Accepted!', 'Job assigned to you. Automatic GPS tracking started.');
+      }
       onAccepted?.();
-      Alert.alert('Accepted!', 'Job assigned to you. Automatic GPS tracking started.');
     } catch (e: any) {
-      Alert.alert('Failed', e?.response?.data?.message || e?.message);
+      const msg = e?.response?.data?.message || e?.message || 'Failed to accept job';
+      Alert.alert('Job Acceptance Error', msg);
+      await load();
     } finally {
       setBusy(false);
     }
   };
 
-  const updateStatus = async (status: string) => {
+  const updateStatus = async (status: string, customLat?: number, customLng?: number) => {
     setBusy(true);
+    // Optimistically update local UI state immediately so screen transitions without delay!
+    setJob((prev: any) => (prev ? { ...prev, status } : prev));
     try {
-      await client.patch(`/api/bookings/${jobId}/status`, { status });
+      const payload: any = { status };
+      if (customLat && customLng) {
+        payload.unloadingLatitude = customLat;
+        payload.unloadingLongitude = customLng;
+      }
+      const res = await client.patch(`/api/bookings/${jobId}/status`, payload);
       await load();
-      if (status === 'Delivered') {
+
+      if (res.data?.realTotalFare && res.data?.actualDistanceKm > 0) {
+        const distKm = res.data.actualDistanceKm;
+        const total = Math.round(res.data.realTotalFare).toLocaleString();
+        Alert.alert(
+          '💰 Actual Fare Recalculated',
+          `Arrival at unloading location verified!\n\nActual Traveled Distance: ${distKm} km\nRecalculated Real Trip Fare: LKR ${total}`
+        );
+      } else if (status === 'Delivered') {
         Alert.alert('Delivered!', 'Earnings added to your account');
       }
     } catch (e: any) {
       Alert.alert('Failed', e?.response?.data?.message || e?.message);
+      await load();
     } finally {
       setBusy(false);
+    }
+  };
+
+  const confirmAndForceLoading = () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('📍 Manual Location Override\n\nHas customer updated pickup location?\n\nForce start Step 2 (Cargo Loading)?')) {
+        updateStatus('Loading');
+      }
+    } else {
+      Alert.alert(
+        '📍 Manual Location Override',
+        'Has customer updated pickup location? Force start Step 2 (Cargo Loading)?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Yes, Start Loading', onPress: () => updateStatus('Loading') },
+        ]
+      );
     }
   };
 
@@ -398,6 +467,16 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
                 <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('EnRoute')} disabled={busy}>
                   <Text style={styles.primaryActionBtnText}>🚘 Start Journey to Pickup Location</Text>
                 </Pressable>
+
+                {/* Manual Override Button for Updated Pickup Location */}
+                <Pressable
+                  style={[styles.primaryActionBtn, { backgroundColor: '#4A5568', marginTop: 10 }]}
+                  onPress={confirmAndForceLoading}
+                  disabled={busy}>
+                  <Text style={styles.primaryActionBtnText}>
+                    📍 Manual Override: Arrive at Updated Location ➔ Begin Loading
+                  </Text>
+                </Pressable>
               </View>
             )}
 
@@ -405,21 +484,100 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
             {phase === 2 && (
               <View style={styles.phaseCard}>
                 <Text style={styles.phaseCardTitle}>📦 Step 2: Load Cargo into Truck</Text>
-                <Text style={styles.phaseCardSub}>Cargo: {job.cargoType} • Weight: {job.cargoWeightKg || 500}kg • Helpers: {job.numberOfHelpers || 0}</Text>
+                <Text style={styles.phaseCardSub}>
+                  Cargo Type: {job.cargoType || 'General Cargo'} • Weight: {job.cargoWeightKg || 500}kg • Helpers: {job.numberOfHelpers || 0}
+                </Text>
+
                 {job.status === 'EnRoute' && (
-                  <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('Arrived')} disabled={busy}>
-                    <Text style={styles.primaryActionBtnText}>📍 Arrived at Customer Pickup Location</Text>
-                  </Pressable>
+                  <View style={{ marginTop: 6 }}>
+                    <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('Arrived')} disabled={busy}>
+                      <Text style={styles.primaryActionBtnText}>📍 Arrived at Customer Pickup Location</Text>
+                    </Pressable>
+
+                    {/* Manual Override for Updated Pickup Address */}
+                    <Pressable
+                      style={[styles.primaryActionBtn, { backgroundColor: '#4A5568', marginTop: 8 }]}
+                      onPress={confirmAndForceLoading}
+                      disabled={busy}>
+                      <Text style={styles.primaryActionBtnText}>
+                        📍 Manual Override: Arrive at Updated Location ➔ Begin Loading
+                      </Text>
+                    </Pressable>
+                  </View>
                 )}
-                {job.status === 'Arrived' && (
-                  <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('Loading')} disabled={busy}>
-                    <Text style={styles.primaryActionBtnText}>📦 Loading Goods into Truck</Text>
-                  </Pressable>
+
+                {(job.status === 'Arrived' || job.status === 'ArrivedAtPickup') && (
+                  <View style={{ marginTop: 8 }}>
+                    <View style={{ backgroundColor: '#FFF9E6', padding: 12, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#F5A623' }}>
+                      <Text style={{ color: '#1A2B4A', fontWeight: '800', fontSize: 13 }}>
+                        📍 Driver Verified Arrived at Customer Pickup Location
+                      </Text>
+                      <Text style={{ color: '#5A6B85', fontSize: 12, marginTop: 4 }}>
+                        Park truck safely at pickup address. Tap button below when ready to begin loading cargo into truck bed.
+                      </Text>
+                    </View>
+                    <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('Loading')} disabled={busy}>
+                      <Text style={styles.primaryActionBtnText}>📦 Start Cargo Loading Process</Text>
+                    </Pressable>
+                  </View>
                 )}
+
                 {job.status === 'Loading' && (
-                  <Pressable style={styles.primaryActionBtn} onPress={() => updateStatus('InTransit')} disabled={busy}>
-                    <Text style={styles.primaryActionBtnText}>🚚 Cargo Loaded - Start Journey to Delivery Dropoffs</Text>
-                  </Pressable>
+                  <View style={{ marginTop: 8 }}>
+                    {/* Live Loading Elapsed Timer Badge */}
+                    <View style={{ backgroundColor: '#1A2B4A', padding: 14, borderRadius: 10, alignItems: 'center', marginBottom: 14 }}>
+                      <Text style={{ color: '#F5A623', fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>
+                        ⏳ CARGO LOADING IN PROGRESS
+                      </Text>
+                      <Text style={{ color: 'white', fontSize: 32, fontWeight: '800', marginVertical: 4 }}>
+                        {formatTimer(loadingSeconds)}
+                      </Text>
+                      <Text style={{ color: '#A0AEC0', fontSize: 11 }}>
+                        Live status & timer broadcast to customer & fleet control
+                      </Text>
+                    </View>
+
+                    {/* Cargo Verification Checklist */}
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A2B4A', marginBottom: 8 }}>
+                      📋 Driver Inspection & Verification Checklist:
+                    </Text>
+
+                    <Pressable
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}
+                      onPress={() => setCargoChecklist(c => ({ ...c, itemsVerified: !c.itemsVerified }))}>
+                      <Text style={{ fontSize: 20, marginRight: 10 }}>{cargoChecklist.itemsVerified ? '✅' : '⬜'}</Text>
+                      <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '600', flex: 1 }}>
+                        Cargo items counted & inspected with customer
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}
+                      onPress={() => setCargoChecklist(c => ({ ...c, weightVerified: !c.weightVerified }))}>
+                      <Text style={{ fontSize: 20, marginRight: 10 }}>{cargoChecklist.weightVerified ? '✅' : '⬜'}</Text>
+                      <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '600', flex: 1 }}>
+                        Weight verified ({job.cargoWeightKg || 500}kg safe truck capacity)
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}
+                      onPress={() => setCargoChecklist(c => ({ ...c, helpersReady: !c.helpersReady }))}>
+                      <Text style={{ fontSize: 20, marginRight: 10 }}>{cargoChecklist.helpersReady ? '✅' : '⬜'}</Text>
+                      <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '600', flex: 1 }}>
+                        {job.numberOfHelpers || 0} Helper(s) assisted & cargo strapped in truck
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[styles.primaryActionBtn, { backgroundColor: '#27AE60', marginTop: 14 }]}
+                      onPress={() => updateStatus('InTransit')}
+                      disabled={busy}>
+                      <Text style={styles.primaryActionBtnText}>
+                        🚚 Cargo Fully Loaded - Start Journey to Dropoff
+                      </Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
             )}

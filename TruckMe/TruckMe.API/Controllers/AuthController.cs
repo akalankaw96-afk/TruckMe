@@ -153,6 +153,92 @@ public class AuthController : ControllerBase
             email = user.Email
         });
     }
+
+    /// <summary>
+    /// Upgrades an existing Customer user account to a Driver Partner.
+    /// </summary>
+    [HttpPost("upgrade-to-driver")]
+    public async Task<IActionResult> UpgradeToDriver(
+        [FromBody] UpgradeToDriverDto dto,
+        [FromServices] TruckMe.Application.Common.Interfaces.IApplicationDbContext context,
+        [FromServices] TruckMe.Application.Common.Interfaces.ITokenService tokenService)
+    {
+        if (dto.UserId == Guid.Empty)
+        {
+            return BadRequest(new { message = "UserId is required" });
+        }
+
+        var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(context.Users, u => u.Id == dto.UserId);
+        if (user == null)
+        {
+            return BadRequest(new { message = "User account not found" });
+        }
+
+        // Update User Role to Driver
+        user.Role = TruckMe.Domain.Enums.UserRole.Driver;
+
+        // Check if linked Driver record already exists
+        var existingDriver = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(context.Drivers, d => d.UserId == user.Id);
+        if (existingDriver == null)
+        {
+            var driver = new TruckMe.Domain.Entities.Driver
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                IsOnline = false,
+                Status = TruckMe.Domain.Enums.DriverStatus.Offline,
+                RatingAverage = 5.0m,
+                TotalRatings = 1,
+                TotalCompletedJobs = 0,
+                TotalEarnings = 0m,
+                CurrentLatitude = 6.9271m,
+                CurrentLongitude = 79.8612m,
+                IsApproved = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.Drivers.Add(driver);
+
+            // Create vehicle only if explicit plate number was supplied
+            if (!string.IsNullOrWhiteSpace(dto.VehiclePlate))
+            {
+                var vehicle = new TruckMe.Domain.Entities.Vehicle
+                {
+                    Id = Guid.NewGuid(),
+                    DriverId = driver.Id,
+                    PlateNumber = dto.VehiclePlate.Trim(),
+                    VehicleType = string.IsNullOrWhiteSpace(dto.VehicleType) ? "1-Ton Truck" : dto.VehicleType.Trim(),
+                    CapacityKg = 1000,
+                    ApprovalStatus = "PendingApproval",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.Vehicles.Add(vehicle);
+                driver.VehiclePlateNumber = dto.VehiclePlate.Trim();
+            }
+        }
+
+        await context.SaveChangesAsync();
+
+        var token = tokenService.GenerateToken(user);
+        var tokenResult = tokenService.GenerateTokenResult(user);
+
+        return Ok(new TruckMe.Application.DTOs.AuthResponse(
+            Token: token,
+            ExpiresAt: tokenResult.ExpiresAt,
+            UserId: user.Id,
+            FullName: user.FullName,
+            Email: user.Email,
+            Role: user.Role.ToString()
+        ));
+    }
+}
+
+public class UpgradeToDriverDto
+{
+    public Guid UserId { get; set; }
+    public string VehiclePlate { get; set; } = string.Empty;
+    public string VehicleType { get; set; } = string.Empty;
 }
 
 public class ForgotPasswordDto

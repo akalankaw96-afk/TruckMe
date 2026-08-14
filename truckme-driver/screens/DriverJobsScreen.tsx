@@ -4,7 +4,7 @@ import {
   ActivityIndicator, RefreshControl, StatusBar, Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import client from '../api/client';
+import client, { getStoredUser } from '../api/client';
 
 const HARDCODED_DRIVER_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -24,11 +24,8 @@ export default function DriverJobsScreen() {
 
   const getDriverId = async (): Promise<string> => {
     try {
-      const cached = await AsyncStorage.getItem('truckme_user');
-      if (cached) {
-        const user = JSON.parse(cached);
-        if (user?.id) return user.id;
-      }
+      const user = await getStoredUser();
+      if (user?.id || user?.userId) return user.id || user.userId;
     } catch (e) {}
     return HARDCODED_DRIVER_ID;
   };

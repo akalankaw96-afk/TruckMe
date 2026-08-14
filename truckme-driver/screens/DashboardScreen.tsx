@@ -55,7 +55,16 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
 
   useEffect(() => { load(selectedRadius); }, [selectedRadius]);
 
+  const isApproved = profile?.isApproved ?? (profile?.approvalStatus === 'Approved' || profile?.status === 'Approved');
+
   const toggleOnline = async (val: boolean) => {
+    if (!isApproved) {
+      Alert.alert(
+        '⏳ Pending Admin Approval',
+        'Your driver partner account & vehicle details are pending admin verification. You can toggle Online and accept jobs once approved by Admin.'
+      );
+      return;
+    }
     setIsOnline(val);
     try {
       await client.patch(`/api/drivers/${user.id}/location`, {
@@ -133,16 +142,38 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
               </Pressable>
             )}
 
+            {!isApproved && (
+              <View style={{ backgroundColor: '#FFF9E6', padding: 16, borderRadius: 12, borderWidth: 1.5, borderColor: '#F5A623', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={{ fontSize: 28 }}>⏳</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#1A2B4A', fontWeight: '800', fontSize: 15 }}>
+                      Account Pending Admin Verification
+                    </Text>
+                    <Text style={{ color: '#5A6B85', fontSize: 12, marginTop: 4, lineHeight: 18 }}>
+                      Your driver partner registration & vehicle details have been submitted. Admin approval is required before you can go online and accept job requests.
+                    </Text>
+                  </View>
+                </View>
+                <Pressable
+                  style={{ backgroundColor: '#1A2B4A', paddingVertical: 10, borderRadius: 8, marginTop: 12, alignItems: 'center' }}
+                  onPress={() => load()}>
+                  <Text style={{ color: '#F5A623', fontWeight: '800', fontSize: 13 }}>🔄 Check Approval Status</Text>
+                </Pressable>
+              </View>
+            )}
+
             <View style={styles.onlineCard}>
               <View>
                 <Text style={styles.onlineLabel}>Status</Text>
                 <Text style={styles.onlineStatus}>
-                  {isOnline ? '🟢 Online & Receiving Jobs' : '⚫ Offline'}
+                  {isOnline ? '🟢 Online & Receiving Jobs' : (!isApproved ? '⏳ Pending Approval' : '⚫ Offline')}
                 </Text>
               </View>
               <Switch
                 value={isOnline}
                 onValueChange={toggleOnline}
+                disabled={!isApproved}
                 trackColor={{ true: '#27AE60', false: '#D8E0EA' }}
               />
             </View>

@@ -378,7 +378,7 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
-    /// Updates the status of an ongoing booking (e.g. ArrivedAtPickup, InTransit, Delivered).
+    /// Updates the status of an ongoing booking (e.g. ArrivedAtPickup, InTransit, AtDropoff, Delivered) and recalculates dynamic fare based on actual dropoff location.
     /// </summary>
     [HttpPut("{id:guid}/status")]
     [HttpPatch("{id:guid}/status")]
@@ -386,15 +386,53 @@ public class BookingsController : ControllerBase
     public async Task<IActionResult> UpdateBookingStatus(Guid id, [FromBody] UpdateBookingStatusSimpleDto dto)
     {
         var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id);
-        if (booking == null) return NotFound("Booking not found");
+        if (booking == null) return NotFound(new { message = "Booking not found" });
 
         if (Enum.TryParse<BookingStatus>(dto.Status, true, out var parsedStatus))
         {
             booking.Status = parsedStatus;
-            if (parsedStatus == BookingStatus.Delivered || parsedStatus == BookingStatus.Completed)
+
+            // Dynamic Recalculation on Arrival at Dropoff / Unloading / Delivered
+            double actualDistanceKm = 0;
+            if (parsedStatus == BookingStatus.AtDropoff || parsedStatus == BookingStatus.Unloading || parsedStatus == BookingStatus.Delivered || parsedStatus == BookingStatus.Completed)
             {
-                booking.CompletedAt = DateTime.UtcNow;
+                if (parsedStatus == BookingStatus.Delivered || parsedStatus == BookingStatus.Completed)
+                {
+                    booking.CompletedAt = DateTime.UtcNow;
+                }
+
+                // Resolve Unloading Coordinates (from DTO or Driver's current location)
+                decimal unloadingLat = dto.UnloadingLatitude ?? dto.Latitude ?? 0m;
+                decimal unloadingLng = dto.UnloadingLongitude ?? dto.Longitude ?? 0m;
+
+                if (unloadingLat == 0m || unloadingLng == 0m)
+                {
+                    var driver = await _context.Drivers.FirstOrDefaultAsync(d => d.Id == booking.DriverId);
+                    if (driver != null && driver.CurrentLatitude != 0m)
+                    {
+                        unloadingLat = driver.CurrentLatitude;
+                        unloadingLng = driver.CurrentLongitude;
+                    }
+                }
+
+                // If unloading location resolved, calculate real actual distance from pickup to unloading spot
+                if (unloadingLat != 0m && unloadingLng != 0m && booking.PickupLatitude != 0m && booking.PickupLongitude != 0m)
+                {
+                    actualDistanceKm = CalculateDistanceKm(booking.PickupLatitude, booking.PickupLongitude, unloadingLat, unloadingLng);
+
+                    // Recalculate Distance Fare and Total Fare
+                    decimal pricePerKm = 160m;
+                    decimal recalculatedDistFare = (decimal)(actualDistanceKm * (double)pricePerKm);
+
+                    booking.DistanceFare = recalculatedDistFare;
+                    booking.TotalFare = booking.BaseFare + recalculatedDistFare + booking.AddOnFare + booking.StopFare;
+
+                    // Recalculate Commission & Driver Payout
+                    booking.Commission = booking.TotalFare * booking.CommissionRate;
+                    booking.DriverPayout = booking.TotalFare - booking.Commission;
+                }
             }
+
             await _context.SaveChangesAsync();
 
             // Trigger automated push notification to customer
@@ -411,10 +449,39 @@ public class BookingsController : ControllerBase
                     );
                 }
             });
+
+            return Ok(new
+            {
+                message = "Status updated & trip fare recalculated based on actual unloading location",
+                status = booking.Status.ToString(),
+                actualDistanceKm = actualDistanceKm,
+                recalculatedDistanceFare = booking.DistanceFare,
+                realTotalFare = booking.TotalFare,
+                driverPayout = booking.DriverPayout
+            });
         }
 
         return Ok(new { message = "Status updated successfully", status = booking.Status.ToString() });
     }
+
+    private static double CalculateDistanceKm(decimal lat1, decimal lon1, decimal lat2, decimal lon2)
+    {
+        if (lat1 == 0 || lon1 == 0 || lat2 == 0 || lon2 == 0) return 12.0;
+
+        double dLat = ToRadians((double)(lat2 - lat1));
+        double dLon = ToRadians((double)(lon2 - lon1));
+
+        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                   Math.Cos(ToRadians((double)lat1)) * Math.Cos(ToRadians((double)lat2)) *
+                   Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+
+        double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        double distanceKm = 6371.0 * c;
+
+        return Math.Max(1.0, Math.Round(distanceKm, 2));
+    }
+
+    private static double ToRadians(double val) => (Math.PI / 180) * val;
 
     /// <summary>
     /// Submits Proof of Delivery (PoD) with recipient signature, cargo photo, recipient name, and notes.
@@ -680,6 +747,10 @@ public class AssignDriverRequest
 public class UpdateBookingStatusSimpleDto
 {
     public string Status { get; set; } = string.Empty;
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    public decimal? UnloadingLatitude { get; set; }
+    public decimal? UnloadingLongitude { get; set; }
 }
 
 public class SubmitPodDto

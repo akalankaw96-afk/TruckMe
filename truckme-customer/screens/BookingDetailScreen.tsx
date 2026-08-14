@@ -115,10 +115,21 @@ export default function BookingDetailScreen({
   const isPaid = paymentStatus === 'Completed';
   const latest = tracking[tracking.length - 1];
 
+  const isPickupPhase = status === 'Pending' || status === 'Searching' || status === 'Assigned' || status === 'Accepted' || status === 'EnRoute' || status === 'DriverEnRoute';
+  const isLoadingPhase = status === 'Loading' || status === 'Arrived' || status === 'ArrivedAtPickup';
+  const isTransitPhase = status === 'InTransit' || status === 'AtDeliveryStop' || status === 'Unloading' || status.toLowerCase().includes('transit');
+
   const driverLat = latest?.latitude || booking.pickupLatitude || 6.9271;
   const driverLng = latest?.longitude || booking.pickupLongitude || 79.8612;
-  const destLat = booking.pickupLatitude || 6.9221;
-  const destLng = booking.pickupLongitude || 79.8712;
+
+  // Dropoff Target Resolution
+  const dropoffLat = booking.dropoffLatitude || (booking.deliveryStops && booking.deliveryStops[0]?.latitude) || 6.9221;
+  const dropoffLng = booking.dropoffLongitude || (booking.deliveryStops && booking.deliveryStops[0]?.longitude) || 79.8712;
+  const dropoffAddress = booking.dropoffAddress || (booking.deliveryStops && booking.deliveryStops[0]?.address) || 'Delivery Dropoff Location';
+
+  const mapDestLat = isTransitPhase ? dropoffLat : (booking.pickupLatitude || 6.9271);
+  const mapDestLng = isTransitPhase ? dropoffLng : (booking.pickupLongitude || 79.8612);
+  const mapDestAddress = isTransitPhase ? dropoffAddress : booking.pickupAddress;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F7FB' }}>
@@ -175,6 +186,18 @@ export default function BookingDetailScreen({
           )}
         </View>
 
+        {/* Live Loading In Progress Banner */}
+        {(status === 'Loading' || status === 'ArrivedAtPickup' || status === 'Arrived') && (
+          <View style={{ backgroundColor: '#FFF9E6', padding: 14, borderRadius: 10, borderWidth: 1.5, borderColor: '#F5A623', marginBottom: 16 }}>
+            <Text style={{ color: '#1A2B4A', fontWeight: '800', fontSize: 14 }}>
+              📦 Cargo Loading in Progress at Pickup Site
+            </Text>
+            <Text style={{ color: '#5A6B85', fontSize: 12, marginTop: 4 }}>
+              Driver has arrived at the pickup location. Goods are currently being verified, strapped, and loaded into the truck.
+            </Text>
+          </View>
+        )}
+
         {/* Schedule */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>📅 Schedule</Text>
@@ -214,18 +237,40 @@ export default function BookingDetailScreen({
           </View>
         )}
 
-        {/* Driver Live Tracking Card */}
-        {isActive && (
+        {/* Driver Live Tracking Card (Only shown during EnRoute or InTransit phases) */}
+        {(isPickupPhase || isTransitPhase) && isActive && (
           <View style={styles.card}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={styles.cardLabel}>🚚 Live Driver GPS Position</Text>
+              <Text style={styles.cardLabel}>
+                {isTransitPhase ? '📍 Live Delivery Dropoff Route Map' : '🚘 Live Driver En-Route Map'}
+              </Text>
               <View style={{ backgroundColor: '#27AE60', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
                 <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>LIVE BROADCAST</Text>
               </View>
             </View>
 
+            {isTransitPhase && (
+              <View style={{ backgroundColor: '#EBF3FE', padding: 12, borderRadius: 8, marginVertical: 8, borderWidth: 1, borderColor: '#2F80ED' }}>
+                <Text style={{ color: '#1A2B4A', fontWeight: '800', fontSize: 13 }}>
+                  🚚 In-Transit: Driving to Delivery Dropoff Site
+                </Text>
+                <Text style={{ color: '#2F80ED', fontWeight: '700', fontSize: 12, marginTop: 4 }}>
+                  📍 Dropoff Address: {dropoffAddress}
+                </Text>
+                <Text style={{ color: '#5A6B85', fontSize: 11, marginTop: 2 }}>
+                  Live GPS route map below is tracking driver's current location directly to your dropoff destination.
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.value}>
+              Destination: {mapDestAddress}
+            </Text>
+
             {latest?.driverName && (
-              <Text style={styles.value}>Driver: {latest.driverName} ({latest.vehiclePlate || 'Truck'})</Text>
+              <Text style={styles.subValue}>
+                Driver Partner: <Text style={{ fontWeight: 'bold', color: '#1A2B4A' }}>{latest.driverName}</Text> ({latest.vehiclePlate || 'Truck'})
+              </Text>
             )}
 
             <Text style={styles.subValue}>
@@ -241,15 +286,17 @@ export default function BookingDetailScreen({
                   width="100%"
                   height="100%"
                   frameBorder="0"
-                  src={`https://maps.google.com/maps?saddr=${driverLat},${driverLng}&daddr=${destLat},${destLng}&output=embed`}
+                  src={`https://maps.google.com/maps?saddr=${driverLat},${driverLng}&daddr=${mapDestLat},${mapDestLng}&output=embed`}
                   style={{ border: 'none', width: '100%', height: '100%' }}
                 />
               ) : (
                 <View style={{ flex: 1, backgroundColor: '#1A2B4A', justifyContent: 'center', alignItems: 'center', padding: 12 }}>
-                  <Text style={{ fontSize: 32, marginBottom: 4 }}>🚚 ➔ 📍</Text>
-                  <Text style={{ color: '#F5A623', fontWeight: 'bold' }}>Driver En-Route Position</Text>
+                  <Text style={{ fontSize: 32, marginBottom: 4 }}>{isTransitPhase ? '📦 ➔ 📍' : '🚚 ➔ 📍'}</Text>
+                  <Text style={{ color: '#F5A623', fontWeight: 'bold' }}>
+                    {isTransitPhase ? 'En-Route to Delivery Dropoff' : 'En-Route to Pickup Location'}
+                  </Text>
                   <Text style={{ color: '#FFFFFF', fontSize: 12, marginTop: 4, textAlign: 'center' }}>
-                    Driver: ({driverLat.toFixed(4)}, {driverLng.toFixed(4)}) → Target: ({destLat.toFixed(4)}, {destLng.toFixed(4)})
+                    Driver: ({driverLat.toFixed(4)}, {driverLng.toFixed(4)}) → Target: ({mapDestLat.toFixed(4)}, {mapDestLng.toFixed(4)})
                   </Text>
                 </View>
               )}
@@ -275,6 +322,10 @@ export default function BookingDetailScreen({
           <View style={styles.divider} />
           <Row label="Total" value={totalFare} bold accent />
 
+          <Text style={{ fontSize: 11, color: '#5A6B85', marginTop: 8, fontStyle: 'italic', lineHeight: 16 }}>
+            ℹ️ Estimated fare shown at booking time. Final fare is dynamically recalculated based on actual traveled distance from pickup to final unloading location.
+          </Text>
+
           {isActive && (
             <Pressable
               style={[styles.cancelBtn, cancelling && { opacity: 0.6 }]}
@@ -295,16 +346,29 @@ export default function BookingDetailScreen({
           )}
 
           {isPaid && (
-            <Pressable
-              style={styles.invoiceBtn}
-              onPress={() => {
-                const invoiceUrl = `${API_BASE_URL}/api/payments/${bookingId}/invoice/download`;
-                Linking.openURL(invoiceUrl).catch(() => {
-                  Alert.alert('Download Invoice', `Open invoice at: ${invoiceUrl}`);
-                });
-              }}>
-              <Text style={styles.invoiceBtnText}>📄 Download & View PDF Invoice</Text>
-            </Pressable>
+            <View style={{ gap: 8, marginTop: 12 }}>
+              <Pressable
+                style={styles.invoiceBtn}
+                onPress={() => {
+                  const invoiceUrl = `${API_BASE_URL}/api/payments/${bookingId}/invoice/download`;
+                  Linking.openURL(invoiceUrl).catch(() => {
+                    Alert.alert('Download Invoice', `Open invoice at: ${invoiceUrl}`);
+                  });
+                }}>
+                <Text style={styles.invoiceBtnText}>📄 Download & View PDF Invoice</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.invoiceBtn, { backgroundColor: '#27AE60' }]}
+                onPress={() => {
+                  // Navigate to Home screen with success toast
+                  (props as any).navigation.navigate('Home', {
+                    toastMessage: '🎉 Trip Completed Successfully! Thank you for choosing TruckMe.',
+                  });
+                }}>
+                <Text style={[styles.invoiceBtnText, { color: 'white' }]}>🏠 Return to Home Page</Text>
+              </Pressable>
+            </View>
           )}
 
           {status === 'Delivered' && !isPaid && onPay && (
