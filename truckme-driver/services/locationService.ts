@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import client from '../api/client';
 
 export interface LocationCoords {
@@ -22,6 +23,64 @@ const SIMULATED_DRIVING_WAYPOINTS: LocationCoords[] = [
   { latitude: 6.9210, longitude: 79.8650 }, // Maradana Station
   { latitude: 6.9271, longitude: 79.8612 }, // Return to Fort
 ];
+
+// Sri Lankan city coordinate dictionary for resolving pickup & dropoff coordinates from address strings
+const CITY_COORDINATES: Record<string, { latitude: number; longitude: number }> = {
+  colombo: { latitude: 6.9271, longitude: 79.8612 },
+  kandy: { latitude: 7.2906, longitude: 80.6337 },
+  galle: { latitude: 6.0535, longitude: 80.2210 },
+  negombo: { latitude: 7.2083, longitude: 79.8358 },
+  gampaha: { latitude: 7.0840, longitude: 79.9925 },
+  kurunegala: { latitude: 7.4863, longitude: 80.3647 },
+  malabe: { latitude: 6.9040, longitude: 79.9600 },
+  maharagama: { latitude: 6.8480, longitude: 79.9265 },
+  ratnapura: { latitude: 6.6828, longitude: 80.3992 },
+  anuradhapura: { latitude: 8.3114, longitude: 80.4037 },
+  jaffna: { latitude: 9.6615, longitude: 80.0255 },
+  trincomalee: { latitude: 8.5874, longitude: 81.2152 },
+  matara: { latitude: 5.9549, longitude: 80.5550 },
+  bambalapitiya: { latitude: 6.8920, longitude: 79.8550 },
+  kiribathgoda: { latitude: 7.0011, longitude: 79.9220 },
+  kadawatha: { latitude: 7.0017, longitude: 79.9530 },
+  pettah: { latitude: 6.9320, longitude: 79.8550 },
+  maradana: { latitude: 6.9210, longitude: 79.8650 },
+  borella: { latitude: 6.9050, longitude: 79.8720 },
+};
+
+/**
+ * Resolves latitude and longitude coordinates from address text string.
+ */
+export function resolveAddressCoordinates(
+  addressText: string,
+  fallbackLat = 6.9271,
+  fallbackLng = 79.8612
+): LocationCoords {
+  if (!addressText) return { latitude: fallbackLat, longitude: fallbackLng };
+  const lower = addressText.toLowerCase();
+  for (const [city, coords] of Object.entries(CITY_COORDINATES)) {
+    if (lower.includes(city)) {
+      return coords;
+    }
+  }
+  return { latitude: fallbackLat, longitude: fallbackLng };
+}
+
+/**
+ * Launches external turn-by-turn navigation (Google Maps / Apple Maps) for driver.
+ */
+export function openExternalNavigation(latitude: number, longitude: number, label: string) {
+  const encodedLabel = encodeURIComponent(label || 'Pickup Location');
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+  const appleMapsUrl = `maps://maps.apple.com/?daddr=${latitude},${longitude}&q=${encodedLabel}`;
+
+  if (typeof window !== 'undefined') {
+    window.open(googleMapsUrl, '_blank');
+  } else {
+    Linking.openURL(googleMapsUrl).catch(() => {
+      Linking.openURL(appleMapsUrl).catch(() => {});
+    });
+  }
+}
 
 /**
  * Gets real-time device GPS coordinates.

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import client from '../api/client';
 import { AuthUser, DriverProfile, Vehicle } from '../types';
-import { getCurrentDeviceLocation } from '../services/locationService';
+import { getCurrentDeviceLocation, openExternalNavigation, resolveAddressCoordinates } from '../services/locationService';
 
 interface Props {
   user: AuthUser;
@@ -281,8 +281,25 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
   // Determine Map Coordinates
   const isDropoffMap = phase >= 3;
-  const mapDestLat = isDropoffMap ? (currentStop.latitude || 6.9221) : (job.pickupLatitude || 6.9271);
-  const mapDestLng = isDropoffMap ? (currentStop.longitude || 79.8712) : (job.pickupLongitude || 79.8612);
+
+  // Resolve Pickup Location coordinates accurately from database lat/lng or address string
+  const rawPickupLat = Number(job.pickupLatitude || 0);
+  const rawPickupLng = Number(job.pickupLongitude || 0);
+
+  const resolvedPickup = (rawPickupLat !== 0 && rawPickupLat !== 6.9271)
+    ? { latitude: rawPickupLat, longitude: rawPickupLng }
+    : resolveAddressCoordinates(job.pickupAddress, 6.9271, 79.8612);
+
+  // Resolve Dropoff Location coordinates accurately from stop lat/lng or stop address string
+  const rawStopLat = Number(currentStop.latitude || 0);
+  const rawStopLng = Number(currentStop.longitude || 0);
+
+  const resolvedDropoff = (rawStopLat !== 0 && rawStopLat !== 6.9271)
+    ? { latitude: rawStopLat, longitude: rawStopLng }
+    : resolveAddressCoordinates(currentStop.address, 6.9221, 79.8712);
+
+  const mapDestLat = isDropoffMap ? resolvedDropoff.latitude : resolvedPickup.latitude;
+  const mapDestLng = isDropoffMap ? resolvedDropoff.longitude : resolvedPickup.longitude;
   const mapAddressLabel = isDropoffMap ? `Stop ${activeStopIndex + 1}/${totalStops}: ${currentStop.address}` : job.pickupAddress;
 
   const handleNextStopOrComplete = () => {
