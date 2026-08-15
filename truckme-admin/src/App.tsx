@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAdminData } from './hooks/useAdminData';
 import { Header } from './components/Header';
 import { KpiMetrics } from './components/KpiMetrics';
@@ -9,15 +9,27 @@ import { KycQueue } from './components/KycQueue';
 import { TripsMonitor } from './components/TripsMonitor';
 import { PayoutsTable } from './components/PayoutsTable';
 import { VehicleTypesManager } from './components/VehicleTypesManager';
+import { ToastContainer, ToastMessage } from './components/Toast';
 
 type TabType = 'map' | 'customers' | 'drivers' | 'kyc' | 'bookings' | 'payouts' | 'vehicleTypes';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>('map');
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const { stats, fleet, customers, drivers, kycQueue, bookings, payouts, vehicleTypes, refreshing, refresh } = useAdminData();
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+    setToasts((prev) => [...prev, { id, message, type }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   return (
     <div className="admin-app">
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       <Header refreshing={refreshing} onRefresh={refresh} />
 
       <div className="container">
@@ -72,12 +84,12 @@ export function App() {
         {/* Active Tab View */}
         <div className="tab-body">
           {activeTab === 'map' && <LiveFleetMap fleet={fleet} />}
-          {activeTab === 'customers' && <CustomersDirectory customers={customers} onRefresh={refresh} />}
-          {activeTab === 'drivers' && <DriverDirectory drivers={drivers} onRefresh={refresh} />}
-          {activeTab === 'kyc' && <KycQueue queue={kycQueue} onRefresh={refresh} />}
-          {activeTab === 'vehicleTypes' && <VehicleTypesManager vehicleTypes={vehicleTypes} onRefresh={refresh} />}
+          {activeTab === 'customers' && <CustomersDirectory customers={customers} onRefresh={refresh} showToast={showToast} />}
+          {activeTab === 'drivers' && <DriverDirectory drivers={drivers} onRefresh={refresh} showToast={showToast} />}
+          {activeTab === 'kyc' && <KycQueue queue={kycQueue} onRefresh={refresh} showToast={showToast} />}
+          {activeTab === 'vehicleTypes' && <VehicleTypesManager vehicleTypes={vehicleTypes} onRefresh={refresh} showToast={showToast} />}
           {activeTab === 'bookings' && <TripsMonitor bookings={bookings} />}
-          {activeTab === 'payouts' && <PayoutsTable payouts={payouts} onRefresh={refresh} />}
+          {activeTab === 'payouts' && <PayoutsTable payouts={payouts} onRefresh={refresh} showToast={showToast} />}
         </div>
       </div>
     </div>

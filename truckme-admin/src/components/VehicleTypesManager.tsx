@@ -6,6 +6,7 @@ import { API_HOST } from '../api/adminClient';
 interface VehicleTypesManagerProps {
   vehicleTypes: VehicleTypeOption[];
   onRefresh: () => void;
+  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 interface ConfirmState {
@@ -16,7 +17,7 @@ interface ConfirmState {
   onConfirm: () => Promise<void>;
 }
 
-export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicleTypes, onRefresh }) => {
+export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicleTypes, onRefresh, showToast }) => {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -63,7 +64,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) {
-      alert('Please enter a vehicle type name.');
+      showToast('Please enter a vehicle type name.', 'error');
       return;
     }
 
@@ -111,19 +112,19 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
         await axios.put(`${API_HOST}/api/vehicletypes/${editingId}`, payload, {
           headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
         });
-        alert(`Vehicle type '${name}' rates updated successfully!`);
+        showToast(`Vehicle type '${name}' rates updated successfully!`, 'success');
       } else {
         await axios.post(`${API_HOST}/api/vehicletypes`, payload, {
           headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
         });
-        alert(`Vehicle type '${name}' added successfully!`);
+        showToast(`Vehicle type '${name}' added successfully!`, 'success');
       }
 
       setShowModal(false);
       setConfirmState(null);
       onRefresh();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to save vehicle type');
+      showToast(err?.response?.data?.message || 'Failed to save vehicle type', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -147,11 +148,11 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
           await axios.delete(`${API_HOST}/api/vehicletypes/${id}`, {
             headers: { 'bypass-tunnel-reminder': 'true' },
           });
-          alert(`Vehicle type '${vehicleName}' removed successfully!`);
+          showToast(`Vehicle type '${vehicleName}' removed successfully!`, 'success');
           setConfirmState(null);
           onRefresh();
         } catch (err) {
-          alert('Failed to remove vehicle type');
+          showToast('Failed to remove vehicle type', 'error');
         }
       },
     });

@@ -5,11 +5,13 @@ import adminClient from '../api/adminClient';
 interface DriverDirectoryProps {
   drivers: DriverPartner[];
   onRefresh: () => void;
+  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-export const DriverDirectory: React.FC<DriverDirectoryProps> = ({ drivers, onRefresh }) => {
+export const DriverDirectory: React.FC<DriverDirectoryProps> = ({ drivers, onRefresh, showToast }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'approved' | 'pending'>('all');
+  const [confirmDriver, setConfirmDriver] = useState<{ driver: DriverPartner; approve: boolean } | null>(null);
 
   let filtered = drivers.filter(
     (d) =>
@@ -22,14 +24,17 @@ export const DriverDirectory: React.FC<DriverDirectoryProps> = ({ drivers, onRef
   else if (statusFilter === 'approved') filtered = filtered.filter((d) => d.isApproved);
   else if (statusFilter === 'pending') filtered = filtered.filter((d) => !d.isApproved);
 
-  const verifyDriver = async (driverId: string, approve: boolean) => {
-    if (!window.confirm(`Are you sure you want to ${approve ? 'APPROVE' : 'REVOKE'} this driver partner?`)) return;
+  const executeVerifyDriver = async () => {
+    if (!confirmDriver) return;
+    const { driver, approve } = confirmDriver;
+
     try {
-      const res = await adminClient.post(`/drivers/${driverId}/verify`, { isApproved: approve });
-      alert(res.data.message || 'Driver status updated!');
+      const res = await adminClient.post(`/drivers/${driver.id}/verify`, { isApproved: approve });
+      showToast(res.data.message || 'Driver status updated!', 'success');
+      setConfirmDriver(null);
       onRefresh();
     } catch (e) {
-      alert('Failed to update driver status');
+      showToast('Failed to update driver status', 'error');
     }
   };
 
@@ -72,6 +77,80 @@ export const DriverDirectory: React.FC<DriverDirectoryProps> = ({ drivers, onRef
           </button>
         </div>
       </div>
+
+      {/* Driver Verification Confirmation Popup */}
+      {confirmDriver && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(26, 43, 74, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '20px',
+              padding: '28px',
+              maxWidth: '460px',
+              width: '90%',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: confirmDriver.approve ? '2px solid var(--green)' : '2px solid var(--red)',
+            }}
+          >
+            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--navy)', marginBottom: '12px' }}>
+              {confirmDriver.approve ? '✓ Approve & Verify Driver Partner?' : '⚠️ Revoke Driver Verification?'}
+            </div>
+            <div style={{ fontSize: '14px', color: '#334155', lineHeight: 1.5, marginBottom: '16px', fontWeight: 600 }}>
+              {confirmDriver.approve
+                ? `Are you sure you want to APPROVE '${confirmDriver.driver.fullName}'? The driver will be granted access to go online and accept customer trip requests.`
+                : `Are you sure you want to REVOKE verification for '${confirmDriver.driver.fullName}'? The driver will be disabled from accepting trips until re-approved.`}
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={executeVerifyDriver}
+                style={{
+                  flex: 1,
+                  background: confirmDriver.approve ? 'var(--green)' : 'var(--red)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+              >
+                {confirmDriver.approve ? 'Yes, Approve Driver ✓' : 'Yes, Revoke Verification'}
+              </button>
+              <button
+                onClick={() => setConfirmDriver(null)}
+                style={{
+                  flex: 1,
+                  background: '#F1F5F9',
+                  color: 'var(--navy)',
+                  border: '1px solid var(--border)',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="table-container">
         <table>
@@ -138,7 +217,10 @@ export const DriverDirectory: React.FC<DriverDirectoryProps> = ({ drivers, onRef
                     </span>
                   </td>
                   <td>
-                    <button className="btn-action" onClick={() => verifyDriver(d.id, !d.isApproved)}>
+                    <button
+                      className="btn-action"
+                      onClick={() => setConfirmDriver({ driver: d, approve: !d.isApproved })}
+                    >
                       {d.isApproved ? 'Revoke Approval' : 'Approve ✓'}
                     </button>
                   </td>

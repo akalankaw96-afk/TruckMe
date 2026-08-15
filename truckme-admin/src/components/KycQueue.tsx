@@ -1,21 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { KycApplicant } from '../types';
 import adminClient from '../api/adminClient';
 
 interface KycQueueProps {
   queue: KycApplicant[];
   onRefresh: () => void;
+  showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-export const KycQueue: React.FC<KycQueueProps> = ({ queue, onRefresh }) => {
-  const verifyDriver = async (driverId: string, approve: boolean) => {
-    if (!window.confirm(`Are you sure you want to ${approve ? 'APPROVE' : 'REJECT'} this driver license?`)) return;
+export const KycQueue: React.FC<KycQueueProps> = ({ queue, onRefresh, showToast }) => {
+  const [confirmTarget, setConfirmTarget] = useState<{ applicant: KycApplicant; approve: boolean } | null>(null);
+
+  const executeVerify = async () => {
+    if (!confirmTarget) return;
+    const { applicant, approve } = confirmTarget;
+
     try {
-      const res = await adminClient.post(`/drivers/${driverId}/verify`, { isApproved: approve });
-      alert(res.data.message || 'Driver license verification updated!');
+      const res = await adminClient.post(`/drivers/${applicant.id}/verify`, { isApproved: approve });
+      showToast(res.data.message || 'Driver license verification updated!', 'success');
+      setConfirmTarget(null);
       onRefresh();
     } catch (e) {
-      alert('Failed to update driver license status');
+      showToast('Failed to update driver license status', 'error');
     }
   };
 
@@ -28,33 +34,109 @@ export const KycQueue: React.FC<KycQueueProps> = ({ queue, onRefresh }) => {
   }
 
   return (
-    <div className="kyc-grid">
-      {queue.map((d) => (
-        <div className="kyc-card" key={d.id}>
-          <div className="kyc-user-row">
-            <div className="kyc-avatar">{(d.fullName || 'D')[0]}</div>
-            <div>
-              <div className="kyc-name">{d.fullName}</div>
-              <div className="kyc-phone">📞 {d.phone || 'N/A'} • {d.email || 'Driver Partner'}</div>
+    <div>
+      {/* Confirmation Modal */}
+      {confirmTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(26, 43, 74, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '20px',
+              padding: '28px',
+              maxWidth: '460px',
+              width: '90%',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: confirmTarget.approve ? '2px solid var(--green)' : '2px solid var(--red)',
+            }}
+          >
+            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--navy)', marginBottom: '12px' }}>
+              {confirmTarget.approve ? '📜 Approve Driver License Document?' : '⚠️ Reject Driver License Application?'}
+            </div>
+            <div style={{ fontSize: '14px', color: '#334155', lineHeight: 1.5, marginBottom: '16px', fontWeight: 600 }}>
+              {confirmTarget.approve
+                ? `Are you sure you want to APPROVE the license document for '${confirmTarget.applicant.fullName}' (${confirmTarget.applicant.licenseNumber})?`
+                : `Are you sure you want to REJECT the license document for '${confirmTarget.applicant.fullName}'?`}
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={executeVerify}
+                style={{
+                  flex: 1,
+                  background: confirmTarget.approve ? 'var(--green)' : 'var(--red)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+              >
+                {confirmTarget.approve ? 'Yes, Approve License' : 'Yes, Reject Application'}
+              </button>
+              <button
+                onClick={() => setConfirmTarget(null)}
+                style={{
+                  flex: 1,
+                  background: '#F1F5F9',
+                  color: 'var(--navy)',
+                  border: '1px solid var(--border)',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
-          <img className="kyc-license-img" src={d.licenseImageUrl} alt="License Verification" />
-          <div className="kyc-meta" style={{ fontSize: '12px', display: 'grid', gap: '4px' }}>
-            <div><strong>License #:</strong> {d.licenseNumber}</div>
-            <div><strong>Vehicle Plate:</strong> {d.vehiclePlateNumber}</div>
-            <div><strong>Vehicle Class:</strong> {d.vehicleType}</div>
-            <div><strong>Status:</strong> <span style={{ color: 'var(--orange)', fontWeight: 800 }}>Pending Review</span></div>
-          </div>
-          <div className="kyc-actions">
-            <button className="btn-approve" onClick={() => verifyDriver(d.id, true)}>
-              Approve License & Activate
-            </button>
-            <button className="btn-reject" onClick={() => verifyDriver(d.id, false)}>
-              Reject
-            </button>
-          </div>
         </div>
-      ))}
+      )}
+
+      <div className="kyc-grid">
+        {queue.map((d) => (
+          <div className="kyc-card" key={d.id}>
+            <div className="kyc-user-row">
+              <div className="kyc-avatar">{(d.fullName || 'D')[0]}</div>
+              <div>
+                <div className="kyc-name">{d.fullName}</div>
+                <div className="kyc-phone">📞 {d.phone || 'N/A'} • {d.email || 'Driver Partner'}</div>
+              </div>
+            </div>
+            <img className="kyc-license-img" src={d.licenseImageUrl} alt="License Verification" />
+            <div className="kyc-meta" style={{ fontSize: '12px', display: 'grid', gap: '4px' }}>
+              <div><strong>License #:</strong> {d.licenseNumber}</div>
+              <div><strong>Vehicle Plate:</strong> {d.vehiclePlateNumber}</div>
+              <div><strong>Vehicle Class:</strong> {d.vehicleType}</div>
+              <div><strong>Status:</strong> <span style={{ color: 'var(--orange)', fontWeight: 800 }}>Pending Review</span></div>
+            </div>
+            <div className="kyc-actions">
+              <button className="btn-approve" onClick={() => setConfirmTarget({ applicant: d, approve: true })}>
+                Approve License & Activate
+              </button>
+              <button className="btn-reject" onClick={() => setConfirmTarget({ applicant: d, approve: false })}>
+                Reject
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
