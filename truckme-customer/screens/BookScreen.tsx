@@ -560,11 +560,17 @@ export default function BookScreen({ user, vehicle, onBack, onBooked }: Props) {
     setSubmitting(true);
     try {
       const pickup = parseDateTime(textInput) || new Date();
+      const originCoords = useCustomPickup
+        ? resolveCoordinates(customPickupAddress)
+        : { lat: selectedAddress?.latitude || 6.9271, lng: selectedAddress?.longitude || 79.8612 };
+
       const res = await client.post('/api/bookings', {
         customerUserId: user.id,
         vehicleTypeId: vehicle.id,
         pickupAddressId: selectedAddress?.id || '00000000-0000-0000-0000-000000000000',
         customPickupAddress: useCustomPickup ? customPickupAddress : selectedAddress?.addressLine1,
+        pickupLatitude: originCoords.lat,
+        pickupLongitude: originCoords.lng,
         scheduledPickupAt: pickup.toISOString(),
         cargoType: 'General',
         cargoDescription: cargoDesc || `${weight}kg shipment`,
@@ -574,12 +580,17 @@ export default function BookScreen({ user, vehicle, onBack, onBooked }: Props) {
         estimatedDistanceKm: parseFloat(distanceKm) || 12,
         estimatedDurationMinutes: parseInt(durationMin, 10) || 35,
         discount: 0,
-        deliveryStops: deliveryStops.map(s => ({
-          address: s.address,
-          recipientName: s.recipientName,
-          recipientPhone: s.recipientPhone,
-          notes: s.notes
-        }))
+        deliveryStops: deliveryStops.map((s, idx) => {
+          const stopCoords = resolveCoordinates(s.address, originCoords.lat + (idx + 1) * 0.05, originCoords.lng + (idx + 1) * 0.05);
+          return {
+            address: s.address,
+            latitude: stopCoords.lat,
+            longitude: stopCoords.lng,
+            recipientName: s.recipientName,
+            recipientPhone: s.recipientPhone,
+            notes: s.notes
+          };
+        })
       });
       Alert.alert('Booked!', `Booking ${res.data.booking.bookingNumber} confirmed`);
       onBooked(res.data.booking.id, res.data.booking.bookingNumber);

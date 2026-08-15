@@ -54,8 +54,15 @@ public class BookingsController : ControllerBase
 
         Guid customerId = user.Id;
         string pickupAddr = !string.IsNullOrWhiteSpace(request.CustomPickupAddress) ? request.CustomPickupAddress : (address?.AddressLine1 ?? "Colombo, Sri Lanka");
-        decimal lat = address?.Latitude ?? 6.9271m;
-        decimal lng = address?.Longitude ?? 79.8612m;
+        decimal lat = request.PickupLatitude != 0 ? request.PickupLatitude : (address?.Latitude ?? 0m);
+        decimal lng = request.PickupLongitude != 0 ? request.PickupLongitude : (address?.Longitude ?? 0m);
+
+        if (lat == 0m || lng == 0m)
+        {
+            var resolved = ResolveCityCoordinates(pickupAddr);
+            lat = (decimal)resolved.lat;
+            lng = (decimal)resolved.lng;
+        }
 
         VehicleSize vehicleSize = VehicleSize.OneTon;
         if (!string.IsNullOrEmpty(request.VehicleTypeId))
@@ -683,6 +690,28 @@ public class BookingsController : ControllerBase
             return Ok(new { message = "Cancellation request declined by driver. Trip remains active.", status = booking.Status.ToString() });
         }
     }
+
+    private static (double lat, double lng) ResolveCityCoordinates(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return (6.9271, 79.8612);
+        string lower = text.ToLowerInvariant();
+        if (lower.Contains("kandy")) return (7.2906, 80.6337);
+        if (lower.Contains("galle")) return (6.0535, 80.2210);
+        if (lower.Contains("negombo")) return (7.2083, 79.8358);
+        if (lower.Contains("gampaha")) return (7.0840, 79.9925);
+        if (lower.Contains("kurunegala")) return (7.4863, 80.3647);
+        if (lower.Contains("malabe")) return (6.9040, 79.9600);
+        if (lower.Contains("maharagama")) return (6.8480, 79.9265);
+        if (lower.Contains("ratnapura")) return (6.6828, 80.3992);
+        if (lower.Contains("anuradhapura")) return (8.3114, 80.4037);
+        if (lower.Contains("jaffna")) return (9.6615, 80.0255);
+        if (lower.Contains("trincomalee")) return (8.5874, 81.2152);
+        if (lower.Contains("matara")) return (5.9549, 80.5550);
+        if (lower.Contains("bambalapitiya")) return (6.8920, 79.8550);
+        if (lower.Contains("kiribathgoda")) return (7.0011, 79.9220);
+        if (lower.Contains("kadawatha")) return (7.0017, 79.9530);
+        return (6.9271, 79.8612);
+    }
 }
 
 public class CancelRespondDto
@@ -703,6 +732,8 @@ public class CustomerBookingRequest
     public string? VehicleTypeId { get; set; }
     public Guid PickupAddressId { get; set; }
     public string? CustomPickupAddress { get; set; }
+    public decimal PickupLatitude { get; set; }
+    public decimal PickupLongitude { get; set; }
     public DateTime ScheduledPickupAt { get; set; }
     public string? CargoType { get; set; }
     public string? CargoDescription { get; set; }

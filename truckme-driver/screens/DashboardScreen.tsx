@@ -294,12 +294,36 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
               </View>
               <Text style={styles.distanceBadge}>📍 {item.distanceBadge || `${item.distanceFromDriverKm} km away`}</Text>
             </View>
-            <Text style={styles.jobFare}>LKR {Number(item.driverPayout || item.totalFare * 0.85).toLocaleString()}</Text>
-            <Text style={styles.jobAddress} numberOfLines={1}>📍 Pickup: {item.pickupAddress}</Text>
+            
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={styles.jobFare}>LKR {Number(item.driverPayout || item.totalFare * 0.85).toLocaleString()}</Text>
+              <Text style={{ fontSize: 11, color: '#64748B', fontWeight: 'bold' }}>#{item.bookingNumber}</Text>
+            </View>
+
+            {/* Stage 1: Pickup Location (Highlighted First) */}
+            <View style={{ backgroundColor: '#F0FDF4', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#BBF7D0', marginBottom: 6 }}>
+              <Text style={{ color: '#166534', fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase' }}>
+                📍 1. Pickup Location
+              </Text>
+              <Text style={{ color: '#0f172a', fontWeight: '700', fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                {item.pickupAddress}
+              </Text>
+            </View>
+
+            {/* Stage 2: Dropoff Location */}
+            <View style={{ backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 10 }}>
+              <Text style={{ color: '#475569', fontWeight: 'bold', fontSize: 11, textTransform: 'uppercase' }}>
+                🏁 2. Dropoff Location {item.deliveryStopCount > 1 ? `(${item.deliveryStopCount} Stops)` : ''}
+              </Text>
+              <Text style={{ color: '#334155', fontWeight: '600', fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                {item.dropoffAddress || 'Delivery Destination'}
+              </Text>
+            </View>
+
             <View style={styles.jobFooter}>
               <Text style={styles.jobMeta}>📦 {item.cargoWeightKg || 250} kg</Text>
               <Text style={styles.jobMeta}>⏱️ Est. {item.estimatedDurationMinutes || 45} mins</Text>
-              <Text style={styles.jobAction}>View Details →</Text>
+              <Text style={styles.jobAction}>View Full Route & Accept →</Text>
             </View>
           </Pressable>
         )}

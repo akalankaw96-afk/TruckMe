@@ -148,6 +148,7 @@ public class DriversController : ControllerBase
         }
 
         var bookings = await _context.Bookings
+            .Include(b => b.DeliveryStops)
             .AsNoTracking()
             .Where(b => b.Status == BookingStatus.Pending || b.Status == BookingStatus.Searching)
             .ToListAsync();
@@ -155,6 +156,9 @@ public class DriversController : ControllerBase
         var jobsWithDistance = bookings.Select(b =>
         {
             double distKm = CalculateDistanceKm(driverLat, driverLng, (double)b.PickupLatitude, (double)b.PickupLongitude);
+            var firstStop = b.DeliveryStops.OrderBy(s => s.Sequence).FirstOrDefault();
+            string dropoffAddr = firstStop?.Address ?? "Delivery Stop, Sri Lanka";
+
             return new
             {
                 id = b.Id,
@@ -164,6 +168,18 @@ public class DriversController : ControllerBase
                 pickupAddress = b.PickupAddress,
                 pickupLatitude = b.PickupLatitude,
                 pickupLongitude = b.PickupLongitude,
+                dropoffAddress = dropoffAddr,
+                deliveryStopCount = b.DeliveryStops.Count,
+                deliveryStops = b.DeliveryStops.OrderBy(s => s.Sequence).Select(s => new
+                {
+                    id = s.Id,
+                    sequence = s.Sequence,
+                    address = s.Address,
+                    latitude = s.Latitude,
+                    longitude = s.Longitude,
+                    recipientName = s.RecipientName,
+                    recipientPhone = s.RecipientPhone,
+                }),
                 distanceFromDriverKm = Math.Round(distKm, 1),
                 distanceBadge = distKm < 1 ? "Under 1 km away" : $"{Math.Round(distKm, 1)} km away",
                 cargoType = b.CargoType.ToString(),
