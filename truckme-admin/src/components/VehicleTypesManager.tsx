@@ -10,6 +10,8 @@ interface VehicleTypesManagerProps {
 
 export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicleTypes, onRefresh }) => {
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [category, setCategory] = useState('Dry');
@@ -20,7 +22,33 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
   const [maxCapacityKg, setMaxCapacityKg] = useState(1500);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleAddVehicleType = async (e: React.FormEvent) => {
+  const openAddModal = () => {
+    setEditingId(null);
+    setName('');
+    setCode('');
+    setCategory('Dry');
+    setDescription('');
+    setBasePrice(5000);
+    setPricePerKm(180);
+    setMinCapacityKg(500);
+    setMaxCapacityKg(1500);
+    setShowModal(true);
+  };
+
+  const openEditModal = (v: VehicleTypeOption) => {
+    setEditingId(v.id);
+    setName(v.name);
+    setCode(v.code);
+    setCategory(v.category || 'Dry');
+    setDescription(v.description || '');
+    setBasePrice(v.basePrice);
+    setPricePerKm(v.pricePerKm);
+    setMinCapacityKg(v.minCapacityKg);
+    setMaxCapacityKg(v.maxCapacityKg);
+    setShowModal(true);
+  };
+
+  const handleSaveVehicleType = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) {
       alert('Please enter a vehicle type name.');
@@ -40,18 +68,22 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
         maxCapacityKg: Number(maxCapacityKg),
       };
 
-      await axios.post(`${API_HOST}/api/vehicletypes`, payload, {
-        headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
-      });
+      if (editingId) {
+        await axios.put(`${API_HOST}/api/vehicletypes/${editingId}`, payload, {
+          headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
+        });
+        alert(`Vehicle type '${name}' rates updated successfully!`);
+      } else {
+        await axios.post(`${API_HOST}/api/vehicletypes`, payload, {
+          headers: { 'Content-Type': 'application/json', 'bypass-tunnel-reminder': 'true' },
+        });
+        alert(`Vehicle type '${name}' added successfully!`);
+      }
 
-      alert(`Vehicle type '${name}' added successfully!`);
       setShowModal(false);
-      setName('');
-      setCode('');
-      setDescription('');
       onRefresh();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to add vehicle type');
+      alert(err?.response?.data?.message || 'Failed to save vehicle type');
     } finally {
       setSubmitting(false);
     }
@@ -80,7 +112,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
         <button
           className="refresh-btn"
           style={{ background: 'var(--navy)', color: 'white' }}
-          onClick={() => setShowModal(true)}
+          onClick={openAddModal}
         >
           ➕ Add New Vehicle Type
         </button>
@@ -112,7 +144,9 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--navy)' }}>➕ Add Vehicle Type</h3>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--navy)' }}>
+                {editingId ? '✏️ Edit Base Rate & Per KM Rate' : '➕ Add Vehicle Type'}
+              </h3>
               <button
                 onClick={() => setShowModal(false)}
                 style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}
@@ -121,7 +155,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
               </button>
             </div>
 
-            <form onSubmit={handleAddVehicleType} style={{ display: 'grid', gap: '12px' }}>
+            <form onSubmit={handleSaveVehicleType} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>Vehicle Type Name *</label>
                 <input
@@ -170,23 +204,23 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>Base Price (LKR)</label>
+                  <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--navy)' }}>💰 Base Rate (LKR)</label>
                   <input
                     type="number"
                     value={basePrice}
                     onChange={(e) => setBasePrice(Number(e.target.value))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '4px' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid var(--orange)', marginTop: '4px', fontWeight: 800 }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>Per Km Price (LKR)</label>
+                  <label style={{ fontSize: '12px', fontWeight: 800, color: 'var(--navy)' }}>📏 Per KM Rate (LKR)</label>
                   <input
                     type="number"
                     value={pricePerKm}
                     onChange={(e) => setPricePerKm(Number(e.target.value))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', marginTop: '4px' }}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid var(--green)', marginTop: '4px', fontWeight: 800 }}
                   />
                 </div>
               </div>
@@ -218,7 +252,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
                   disabled={submitting}
                   style={{ flex: 1, background: 'var(--green)', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
                 >
-                  {submitting ? 'Adding...' : 'Save Vehicle Type'}
+                  {submitting ? 'Saving...' : editingId ? 'Update Rates ✓' : 'Save Vehicle Type'}
                 </button>
                 <button
                   type="button"
@@ -244,7 +278,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
               <th>Per Km Rate</th>
               <th>Payload Capacity</th>
               <th>Description</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -264,28 +298,37 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
                     <span className="status-tag status-InTransit">{v.code}</span>
                   </td>
                   <td>
-                    <span className={`status-tag ${v.category.includes('Temp') ? 'status-Pending' : 'status-Approved'}`}>
+                    <span className={`status-tag ${v.category?.includes('Temp') ? 'status-Pending' : 'status-Approved'}`}>
                       {v.category}
                     </span>
                   </td>
                   <td>
-                    <strong style={{ color: 'var(--green)' }}>LKR {v.basePrice.toLocaleString()}</strong>
+                    <strong style={{ color: 'var(--green)', fontSize: '14px' }}>LKR {v.basePrice.toLocaleString()}</strong>
                   </td>
                   <td>
-                    <strong>LKR {v.pricePerKm} / km</strong>
+                    <strong style={{ color: 'var(--blue)', fontSize: '14px' }}>LKR {v.pricePerKm} / km</strong>
                   </td>
                   <td>
                     ⚖️ {v.minCapacityKg} - {v.maxCapacityKg} kg
                   </td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{v.description}</td>
                   <td>
-                    <button
-                      className="btn-reject"
-                      style={{ padding: '6px 12px', fontSize: '12px' }}
-                      onClick={() => handleDeleteVehicleType(v.id, v.name)}
-                    >
-                      Remove 🗑️
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        className="btn-action"
+                        style={{ padding: '6px 10px', fontSize: '12px', background: '#EBF5FF', color: 'var(--blue)', border: '1px solid #BFDBFE' }}
+                        onClick={() => openEditModal(v)}
+                      >
+                        Edit Rates ✏️
+                      </button>
+                      <button
+                        className="btn-reject"
+                        style={{ padding: '6px 10px', fontSize: '12px' }}
+                        onClick={() => handleDeleteVehicleType(v.id, v.name)}
+                      >
+                        Remove 🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

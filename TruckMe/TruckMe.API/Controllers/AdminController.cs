@@ -299,6 +299,12 @@ public class AdminController : ControllerBase
         return RedirectToAction("AddVehicleType", "VehicleTypes", dto);
     }
 
+    [HttpPut("vehicle-types/{id}")]
+    public IActionResult UpdateAdminVehicleType(string id, [FromBody] VehicleTypeDto dto)
+    {
+        return RedirectToAction("UpdateVehicleType", "VehicleTypes", new { id, dto });
+    }
+
     [HttpDelete("vehicle-types/{id}")]
     public IActionResult DeleteAdminVehicleType(string id)
     {

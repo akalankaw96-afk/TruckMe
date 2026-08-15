@@ -134,6 +134,27 @@ public class VehicleTypesController : ControllerBase
         return Ok(new { message = "Vehicle type added successfully!", vehicleType = dto });
     }
 
+    [HttpPut("{id}")]
+    public IActionResult UpdateVehicleType(string id, [FromBody] VehicleTypeDto dto)
+    {
+        if (!_vehicleTypes.TryGetValue(id, out var existing))
+        {
+            return NotFound(new { message = "Vehicle type not found." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.Name)) existing.Name = dto.Name;
+        if (!string.IsNullOrWhiteSpace(dto.Code)) existing.Code = dto.Code;
+        if (!string.IsNullOrWhiteSpace(dto.Category)) existing.Category = dto.Category;
+        if (!string.IsNullOrWhiteSpace(dto.Description)) existing.Description = dto.Description;
+        if (dto.BasePrice > 0) existing.BasePrice = dto.BasePrice;
+        if (dto.PricePerKm > 0) existing.PricePerKm = dto.PricePerKm;
+        if (dto.MinCapacityKg > 0) existing.MinCapacityKg = dto.MinCapacityKg;
+        if (dto.MaxCapacityKg > 0) existing.MaxCapacityKg = dto.MaxCapacityKg;
+
+        _vehicleTypes[id] = existing;
+        return Ok(new { message = $"Vehicle type '{existing.Name}' rates updated successfully!", vehicleType = existing });
+    }
+
     [HttpDelete("{id}")]
     public IActionResult DeleteVehicleType(string id)
     {
