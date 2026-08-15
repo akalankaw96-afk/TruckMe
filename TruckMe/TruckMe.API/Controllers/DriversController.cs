@@ -299,8 +299,13 @@ public class DriversController : ControllerBase
             driver.CurrentLatitude = request.Latitude;
             driver.CurrentLongitude = request.Longitude;
             driver.LastLocationUpdate = DateTime.UtcNow;
+            if (request.IsOnline.HasValue)
+            {
+                driver.IsOnline = request.IsOnline.Value;
+                driver.Status = request.IsOnline.Value ? DriverStatus.Online : DriverStatus.Offline;
+            }
             await _context.SaveChangesAsync();
-            return Ok(new { isOnline = driver.IsOnline, message = "Location updated successfully" });
+            return Ok(new { isOnline = driver.IsOnline, status = driver.Status.ToString(), message = "Location and online status updated successfully" });
         }
         return NoContent();
     }

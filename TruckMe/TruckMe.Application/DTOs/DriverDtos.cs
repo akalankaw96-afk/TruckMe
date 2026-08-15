@@ -1,4 +1,4 @@
-﻿// DTOs/DriverDtos.cs
+// DTOs/DriverDtos.cs
 using TruckMe.Domain.Enums;
 
 namespace TruckMe.Application.DTOs;
@@ -35,14 +35,19 @@ public record AvailableJobDto(
     DateTime ScheduledAt
 );
 
-public record UpdateLocationRequest(
-    decimal Latitude,
-    decimal Longitude
-);
+public class UpdateLocationRequest
+{
+    public decimal Latitude { get; set; }
+    public decimal Longitude { get; set; }
+    public bool? IsOnline { get; set; }
+    public bool? IsAvailable { get; set; }
+}
 
-public record UpdateDriverStatusRequest(
-    bool IsOnline
-);
+public class UpdateDriverStatusRequest
+{
+    public bool IsOnline { get; set; }
+    public bool? IsAvailable { get; set; }
+}
 
 public record DriverEarningsDto(
     decimal TodayEarnings,

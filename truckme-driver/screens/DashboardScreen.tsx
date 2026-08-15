@@ -67,12 +67,15 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
     }
     setIsOnline(val);
     try {
-      await client.patch(`/api/drivers/${user.id}/location`, {
-        latitude: 6.9271,
-        longitude: 79.8612,
-        isOnline: val,
-        isAvailable: val,
-      });
+      await Promise.all([
+        client.post(`/api/drivers/${user.id}/status`, { isOnline: val }).catch(() => {}),
+        client.patch(`/api/drivers/${user.id}/location`, {
+          latitude: 6.9271,
+          longitude: 79.8612,
+          isOnline: val,
+          isAvailable: val,
+        }).catch(() => {}),
+      ]);
     } catch (e: any) {
       Alert.alert('Error', 'Failed to update online status');
       setIsOnline(!val);
