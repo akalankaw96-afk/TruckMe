@@ -38,6 +38,45 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   const [podPhoto, setPodPhoto] = useState('');
   const [podSignature, setPodSignature] = useState('data:image/svg+xml;utf8,<svg>Verified Digital Signature</svg>');
 
+  // Edit / Override Pickup Location Modal State
+  const [showEditPickupModal, setShowEditPickupModal] = useState(false);
+  const [editPickupText, setEditPickupText] = useState('');
+
+  const submitPickupOverride = async (customAddress?: string) => {
+    const targetAddr = customAddress || editPickupText;
+    if (!targetAddr) return;
+
+    setBusy(true);
+    try {
+      const res = await client.patch(`/api/bookings/${jobId}/pickup-location`, {
+        pickupAddress: targetAddr,
+      });
+
+      const updatedAddr = res.data.pickupAddress || targetAddr;
+      const updatedLat = res.data.pickupLatitude || 6.9271;
+      const updatedLng = res.data.pickupLongitude || 79.8612;
+
+      setJob((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              pickupAddress: updatedAddr,
+              pickupLatitude: updatedLat,
+              pickupLongitude: updatedLng,
+            }
+          : prev
+      );
+
+      setShowEditPickupModal(false);
+      Alert.alert('📍 Pickup Location Updated', `Pickup address synced to: ${updatedAddr}`);
+      await load();
+    } catch (e: any) {
+      Alert.alert('Update Failed', e?.response?.data?.message || e?.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const load = async () => {
     try {
       const res = await client.get(`/api/bookings/${jobId}`);
@@ -372,11 +411,23 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
             <Text style={styles.cardLabel}>
               {isDropoffMap ? `🗺️ Delivery Stop ${activeStopIndex + 1} of ${totalStops} Map` : '🗺️ Customer Pickup Location Map'}
             </Text>
-            <Pressable
-              style={styles.navChip}
-              onPress={() => openExternalNavigation(mapDestLat, mapDestLng, mapAddressLabel)}>
-              <Text style={styles.navChipText}>🗺️ Open Maps</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {!isDropoffMap && (
+                <Pressable
+                  style={{ backgroundColor: '#FFF3DC', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#F5A623' }}
+                  onPress={() => {
+                    setEditPickupText(job?.pickupAddress || 'Rathnapura, Sri Lanka');
+                    setShowEditPickupModal(true);
+                  }}>
+                  <Text style={{ color: '#D97706', fontSize: 10, fontWeight: '800' }}>✏️ Correct Address</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={styles.navChip}
+                onPress={() => openExternalNavigation(mapDestLat, mapDestLng, mapAddressLabel)}>
+                <Text style={styles.navChipText}>🗺️ Open Maps</Text>
+              </Pressable>
+            </View>
           </View>
 
           <Text style={styles.value}>{mapAddressLabel}</Text>
@@ -636,6 +687,57 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
             )}
           </View>
         )}
+
+        {/* Correct / Sync Pickup Location Modal */}
+        <Modal visible={showEditPickupModal} animationType="slide" transparent>
+          <View style={podStyles.overlay}>
+            <View style={podStyles.modalCard}>
+              <Text style={podStyles.modalTitle}>📍 Correct / Sync Pickup Address</Text>
+              <Text style={podStyles.modalSub}>Update customer pickup address string and sync map coordinates</Text>
+
+              <Text style={podStyles.label}>Select Quick Sri Lankan City Location</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {[
+                    'Rathnapura, Sri Lanka',
+                    'Kandy, Sri Lanka',
+                    'Galle, Sri Lanka',
+                    'Negombo, Sri Lanka',
+                    'Gampaha, Sri Lanka',
+                    'Kurunegala, Sri Lanka',
+                    'Colombo Fort, Sri Lanka',
+                    'Bambalapitiya, Sri Lanka',
+                    'Malabe, Sri Lanka',
+                  ].map(city => (
+                    <Pressable
+                      key={city}
+                      style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#CBD5E1' }}
+                      onPress={() => submitPickupOverride(city)}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E293B' }}>📍 {city.split(',')[0]}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <Text style={podStyles.label}>Or Type Custom Pickup Address</Text>
+              <TextInput
+                style={podStyles.input}
+                placeholder="e.g. Rathnapura, Sri Lanka"
+                value={editPickupText}
+                onChangeText={setEditPickupText}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <Pressable style={podStyles.cancelBtn} onPress={() => setShowEditPickupModal(false)} disabled={busy}>
+                  <Text style={podStyles.cancelBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={podStyles.submitBtn} onPress={() => submitPickupOverride()} disabled={busy}>
+                  <Text style={podStyles.submitBtnText}>Save & Sync Map</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Proof of Delivery (PoD) Modal */}
         <Modal visible={showPodModal} animationType="slide" transparent>

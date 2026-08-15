@@ -246,6 +246,15 @@ public class BookingsController : ControllerBase
 
         if (booking == null) return NotFound(new { message = "Booking not found" });
 
+        decimal pickupLat = booking.PickupLatitude;
+        decimal pickupLng = booking.PickupLongitude;
+        if (pickupLat == 0m || pickupLat == 6.9271m)
+        {
+            var resolved = ResolveCityCoordinates(booking.PickupAddress);
+            pickupLat = (decimal)resolved.lat;
+            pickupLng = (decimal)resolved.lng;
+        }
+
         var dto = new
         {
             id = booking.Id,
@@ -253,8 +262,8 @@ public class BookingsController : ControllerBase
             customerId = booking.CustomerId,
             driverId = booking.DriverId,
             pickupAddress = booking.PickupAddress,
-            pickupLatitude = booking.PickupLatitude,
-            pickupLongitude = booking.PickupLongitude,
+            pickupLatitude = pickupLat,
+            pickupLongitude = pickupLng,
             pickupContactName = booking.PickupContactName,
             pickupContactPhone = booking.PickupContactPhone,
             cargoType = booking.CargoType.ToString(),
@@ -724,9 +733,52 @@ public class BookingsController : ControllerBase
         if (lower.Contains("kalutara")) return (6.5854, 79.9607);
         if (lower.Contains("hambantota")) return (6.1241, 81.1185);
         if (lower.Contains("badulla")) return (6.9934, 81.0550);
-        if (lower.Contains("nuwara")) return (6.9497, 80.7891);
         return (6.9271, 79.8612);
     }
+
+    /// <summary>
+    /// Updates pickup address and coordinates for a booking.
+    /// </summary>
+    [HttpPatch("{id:guid}/pickup-location")]
+    public async Task<IActionResult> UpdatePickupLocation(Guid id, [FromBody] UpdatePickupLocationDto dto)
+    {
+        var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id);
+        if (booking == null) return NotFound(new { message = "Booking not found" });
+
+        if (!string.IsNullOrWhiteSpace(dto.PickupAddress))
+        {
+            booking.PickupAddress = dto.PickupAddress;
+        }
+
+        if (dto.Latitude.HasValue && dto.Longitude.HasValue && dto.Latitude.Value != 0 && dto.Longitude.Value != 0)
+        {
+            booking.PickupLatitude = dto.Latitude.Value;
+            booking.PickupLongitude = dto.Longitude.Value;
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.PickupAddress))
+        {
+            var resolved = ResolveCityCoordinates(dto.PickupAddress);
+            booking.PickupLatitude = (decimal)resolved.lat;
+            booking.PickupLongitude = (decimal)resolved.lng;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Pickup location updated successfully",
+            pickupAddress = booking.PickupAddress,
+            pickupLatitude = booking.PickupLatitude,
+            pickupLongitude = booking.PickupLongitude
+        });
+    }
+}
+
+public class UpdatePickupLocationDto
+{
+    public string? PickupAddress { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
 }
 
 public class CancelRespondDto
