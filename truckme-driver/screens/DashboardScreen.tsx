@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import client from '../api/client';
 import { DriverUser, DriverProfile } from '../types';
+import { startDriverLocationWatcher, getCurrentDeviceLocation, LocationCoords } from '../services/locationService';
 
 interface Props {
   user: DriverUser;
@@ -32,10 +33,16 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
   const [refreshing, setRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [selectedRadius, setSelectedRadius] = useState<number>(25);
+  const [currentCoords, setCurrentCoords] = useState<LocationCoords>({ latitude: 6.9271, longitude: 79.8612 });
+  const [isSimulatingDrive, setIsSimulatingDrive] = useState(false);
 
-  const load = async (radius = selectedRadius) => {
+  const load = async (radius = selectedRadius, coords = currentCoords) => {
     try {
-      const radiusParam = radius > 0 ? `?maxDistanceKm=${radius}` : '';
+      const latParam = coords ? `&lat=${coords.latitude}&lng=${coords.longitude}` : '';
+      const radiusParam = radius > 0 
+        ? `?maxDistanceKm=${radius}${latParam}` 
+        : (coords ? `?lat=${coords.latitude}&lng=${coords.longitude}` : '');
+
       const [pRes, jRes, aRes] = await Promise.all([
         client.get(`/api/drivers/${user.id}`).catch(() => ({ data: null })),
         client.get(`/api/drivers/${user.id}/available-jobs${radiusParam}`).catch(() => ({ data: [] })),
@@ -53,7 +60,39 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
     }
   };
 
-  useEffect(() => { load(selectedRadius); }, [selectedRadius]);
+  // Initial load
+  useEffect(() => {
+    getCurrentDeviceLocation().then((coords) => {
+      setCurrentCoords(coords);
+      load(selectedRadius, coords);
+    });
+  }, [selectedRadius]);
+
+  // LIVE GPS TRACKING EFFECT:
+  // Automatically runs location watcher every 10 seconds while Online
+  useEffect(() => {
+    let stopWatcher: (() => void) | null = null;
+
+    if (isOnline) {
+      console.log('[GPS Watcher] Starting live GPS tracking for driver:', user.id);
+      stopWatcher = startDriverLocationWatcher(
+        user.id,
+        (coords) => {
+          setCurrentCoords(coords);
+          // Periodically update available jobs distance matching based on new live coordinates
+          load(selectedRadius, coords);
+        },
+        isSimulatingDrive,
+        10000 // Push GPS location every 10 seconds
+      );
+    } else {
+      console.log('[GPS Watcher] Driver is offline. GPS tracking paused.');
+    }
+
+    return () => {
+      if (stopWatcher) stopWatcher();
+    };
+  }, [isOnline, isSimulatingDrive, user.id]);
 
   const isApproved = profile?.isApproved ?? (profile?.approvalStatus === 'Approved' || profile?.status === 'Approved');
 
@@ -67,11 +106,13 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
     }
     setIsOnline(val);
     try {
+      const coords = await getCurrentDeviceLocation();
+      setCurrentCoords(coords);
       await Promise.all([
         client.post(`/api/drivers/${user.id}/status`, { isOnline: val }).catch(() => {}),
         client.patch(`/api/drivers/${user.id}/location`, {
-          latitude: 6.9271,
-          longitude: 79.8612,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
           isOnline: val,
           isAvailable: val,
         }).catch(() => {}),
@@ -166,12 +207,20 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
               </View>
             )}
 
+            {/* Online Status & Live GPS Card */}
             <View style={styles.onlineCard}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 10 }}>
                 <Text style={styles.onlineLabel}>Status</Text>
                 <Text style={styles.onlineStatus}>
                   {isOnline ? '🟢 Online & Receiving Jobs' : (!isApproved ? '⏳ Pending Approval' : '⚫ Offline')}
                 </Text>
+                {isOnline && (
+                  <View style={styles.gpsBadge}>
+                    <Text style={styles.gpsBadgeText}>
+                      📡 Live GPS: {currentCoords.latitude.toFixed(4)}° N, {currentCoords.longitude.toFixed(4)}° E
+                    </Text>
+                  </View>
+                )}
               </View>
               <Switch
                 value={isOnline}
@@ -180,6 +229,23 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
                 trackColor={{ true: '#27AE60', false: '#D8E0EA' }}
               />
             </View>
+
+            {/* Simulated Vehicle Driving Toggle for Testing/Demonstration */}
+            {isOnline && (
+              <View style={styles.simCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.simTitle}>🚗 Simulate Driving (Moving Vehicle)</Text>
+                  <Text style={styles.simDesc}>
+                    Simulate real-time driving movement along Colombo streets to test live location dispatch.
+                  </Text>
+                </View>
+                <Switch
+                  value={isSimulatingDrive}
+                  onValueChange={setIsSimulatingDrive}
+                  trackColor={{ true: '#3B82F6', false: '#D8E0EA' }}
+                />
+              </View>
+            )}
 
             {profile && (
               <View style={styles.statsRow}>
@@ -218,149 +284,118 @@ export default function DashboardScreen({ user, onLogout, onSelectJob, onOpenPro
             )}
           </View>
         }
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(selectedRadius); }} tintColor="#F5A623" />
-        }
         renderItem={({ item }) => (
           <Pressable
-            style={[styles.jobCard, activeJob && { opacity: 0.7 }]}
-            onPress={() => {
-              if (activeJob) {
-                Alert.alert(
-                  'Active Trip in Progress 🚚',
-                  `You are currently executing trip ${activeJob.bookingNumber}. Please complete your active delivery before accepting another job.`,
-                  [
-                    { text: 'View Active Route', onPress: () => onSelectJob(activeJob.id) },
-                    { text: 'OK', style: 'cancel' }
-                  ]
-                );
-              } else {
-                onSelectJob(item.id);
-              }
-            }}>
+            style={[styles.jobCard, activeJob && styles.disabledJobCard]}
+            onPress={() => onSelectJob(item.id)}>
             <View style={styles.jobHeader}>
-              <Text style={styles.bookingNumber}>{item.bookingNumber || 'Job Request'}</Text>
-              <View style={styles.distanceBadgeBox}>
-                <Text style={styles.distanceBadgeText}>📍 {item.distanceBadge || `${item.distanceFromDriverKm || 3.4} km away`}</Text>
+              <View style={styles.jobBadge}>
+                <Text style={styles.jobBadgeText}>{item.cargoType || 'Cargo Freight'}</Text>
               </View>
+              <Text style={styles.distanceBadge}>📍 {item.distanceBadge || `${item.distanceFromDriverKm} km away`}</Text>
             </View>
-
-            <Text style={styles.pickupAddr}>📍 Pickup: {item.pickupAddress}</Text>
-            <Text style={styles.cargoInfo}>
-              📦 {item.cargoType || 'Cargo'} • {item.cargoWeightKg || 500}kg • {item.totalDistanceKm || 12}km trip
-            </Text>
-
-            <View style={styles.payoutRow}>
-              <Text style={styles.payoutLabel}>DRIVER PAYOUT</Text>
-              <Text style={styles.payoutAmount}>
-                LKR {Math.round(item.driverPayout || item.totalFare * 0.9 || 7200).toLocaleString()}
-              </Text>
+            <Text style={styles.jobFare}>LKR {Number(item.driverPayout || item.totalFare * 0.85).toLocaleString()}</Text>
+            <Text style={styles.jobAddress} numberOfLines={1}>📍 Pickup: {item.pickupAddress}</Text>
+            <View style={styles.jobFooter}>
+              <Text style={styles.jobMeta}>📦 {item.cargoWeightKg || 250} kg</Text>
+              <Text style={styles.jobMeta}>⏱️ Est. {item.estimatedDurationMinutes || 45} mins</Text>
+              <Text style={styles.jobAction}>View Details →</Text>
             </View>
           </Pressable>
         )}
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No Jobs Within {selectedRadius > 0 ? `${selectedRadius} km` : 'Selected Area'}</Text>
-            <Text style={styles.emptySub}>Try increasing your distance radius filter above to see more transport requests!</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No Jobs Available</Text>
+            <Text style={styles.emptySubtitle}>
+              {!isOnline
+                ? 'Turn Online to receive real-time job requests nearby'
+                : 'There are no pending jobs matching your current distance radius. Driving around will discover new requests!'}
+            </Text>
           </View>
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => load(selectedRadius)} colors={['#F5A623']} />
         }
       />
     </View>
   );
 }
 
-function Stat({ label, value }: { label: string; value: any }) {
+function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <View style={styles.statBox}>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statVal}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
-const NAVY = '#1A2B4A';
-const ORANGE = '#F5A623';
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F7FB' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F7FB' },
-
+  root: { flex: 1, backgroundColor: '#F4F6F9' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 16, marginTop: 8,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 16, backgroundColor: '#1A2B4A', padding: 16, borderRadius: 12,
   },
-  greeting: { fontSize: 22, fontWeight: '800', color: NAVY },
-  role: { fontSize: 12, color: '#5A6B85', marginTop: 2, fontWeight: '600' },
-  headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  profileBtn: {
-    backgroundColor: '#EBF5FF', paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 8, borderWidth: 1, borderColor: '#BEE3F8',
-  },
-  profileBtnText: { color: '#2B6CB0', fontWeight: '700', fontSize: 13 },
-  logout: { color: ORANGE, fontWeight: '700', fontSize: 13 },
-
+  greeting: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  role: { color: '#F5A623', fontSize: 12, marginTop: 2, fontWeight: '600' },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  profileBtn: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  profileBtnText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+  logout: { color: '#FF6B6B', marginLeft: 6, fontWeight: 'bold', fontSize: 12 },
   activeJobBanner: {
-    backgroundColor: '#10B981', padding: 16, borderRadius: 12, marginBottom: 16,
+    backgroundColor: '#1A2B4A', borderRadius: 12, padding: 16, marginBottom: 16,
+    borderWidth: 2, borderColor: '#F5A623',
   },
-  activeJobTitle: { fontSize: 13, fontWeight: '800', color: 'white' },
-  activeBadge: { backgroundColor: 'rgba(255,255,255,0.3)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  activeBadgeText: { color: 'white', fontWeight: '800', fontSize: 10 },
-  activeJobNumber: { fontSize: 16, fontWeight: '900', color: 'white', marginTop: 4 },
-  activeJobAddress: { fontSize: 12, color: 'rgba(255,255,255,0.9)', marginTop: 2 },
-  activeJobArrow: { color: 'white', fontWeight: '800', fontSize: 13 },
-
+  activeJobTitle: { color: '#F5A623', fontWeight: 'bold', fontSize: 14 },
+  activeBadge: { backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  activeBadgeText: { color: 'white', fontWeight: 'bold', fontSize: 10 },
+  activeJobNumber: { color: 'white', fontWeight: '800', fontSize: 16, marginTop: 4 },
+  activeJobAddress: { color: '#94A3B8', fontSize: 12, marginTop: 2 },
+  activeJobArrow: { color: '#F5A623', fontWeight: 'bold', fontSize: 13 },
   onlineCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: 'white', padding: 16, borderRadius: 12, marginBottom: 16,
-    borderWidth: 1, borderColor: '#D8E0EA',
+    backgroundColor: 'white', padding: 16, borderRadius: 12, marginBottom: 12,
+    borderWidth: 1, borderColor: '#E2E8F0',
   },
-  onlineLabel: { fontSize: 11, color: '#8895A8', fontWeight: '700', letterSpacing: 0.8 },
-  onlineStatus: { fontSize: 15, fontWeight: '700', color: NAVY, marginTop: 2 },
-
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  statBox: {
-    flex: 1, backgroundColor: NAVY, padding: 12, borderRadius: 10, alignItems: 'center',
-  },
-  statValue: { fontSize: 16, fontWeight: '800', color: ORANGE },
-  statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: NAVY, marginBottom: 10 },
-  subSectionTitle: { fontSize: 13, fontWeight: '600', color: '#5A6B85', marginBottom: 12 },
-
-  radiusChip: {
-    paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: 'white', borderRadius: 20,
-    borderWidth: 1.5, borderColor: '#D8E0EA',
-  },
-  radiusChipActive: { backgroundColor: NAVY, borderColor: NAVY },
-  radiusChipText: { fontSize: 12, color: '#5A6B85', fontWeight: '700' },
-  radiusChipTextActive: { color: 'white' },
-
-  jobCard: {
-    backgroundColor: 'white', borderRadius: 12, padding: 16,
-    marginBottom: 12, borderWidth: 1, borderColor: '#D8E0EA',
-  },
-  jobHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  bookingNumber: { fontSize: 15, fontWeight: '800', color: NAVY },
-  distanceBadgeBox: { backgroundColor: '#FFF8E7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: ORANGE },
-  distanceBadgeText: { fontSize: 11, fontWeight: '800', color: ORANGE },
-
-  pickupAddr: { fontSize: 13, color: NAVY, fontWeight: '600', marginBottom: 4 },
-  cargoInfo: { fontSize: 12, color: '#5A6B85', marginBottom: 12 },
-
-  payoutRow: {
+  onlineLabel: { color: '#64748B', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' },
+  onlineStatus: { color: '#1E293B', fontSize: 15, fontWeight: 'bold', marginTop: 2 },
+  gpsBadge: { backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginTop: 6, alignSelf: 'flex-start' },
+  gpsBadgeText: { color: '#2563EB', fontSize: 11, fontWeight: '700' },
+  simCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderTopWidth: 1, borderTopColor: '#E8EDF3', paddingTop: 10,
+    backgroundColor: '#F0F9FF', padding: 12, borderRadius: 10, marginBottom: 16,
+    borderWidth: 1, borderColor: '#BAE6FD',
   },
-  payoutLabel: { fontSize: 10, fontWeight: '800', color: '#8895A8', letterSpacing: 0.8 },
-  payoutAmount: { fontSize: 18, fontWeight: '900', color: '#27AE60' },
-
-  emptyCard: {
-    backgroundColor: 'white', padding: 24, borderRadius: 12,
-    alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: '#D8E0EA',
+  simTitle: { color: '#0369A1', fontSize: 13, fontWeight: 'bold' },
+  simDesc: { color: '#0284C7', fontSize: 11, marginTop: 2, lineHeight: 15 },
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  statBox: {
+    flex: 1, backgroundColor: 'white', padding: 12, borderRadius: 10, alignItems: 'center',
+    borderWidth: 1, borderColor: '#E2E8F0',
   },
-  emptyTitle: { fontSize: 15, fontWeight: '700', color: NAVY, marginBottom: 6 },
-  emptySub: { fontSize: 12, color: '#8895A8', textAlign: 'center' },
-
-  activeWarningCard: { backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: ORANGE, borderRadius: 8, padding: 10, marginBottom: 12 },
-  activeWarningText: { fontSize: 12, color: NAVY, fontWeight: '700', textAlign: 'center' },
+  statVal: { fontSize: 16, fontWeight: 'bold', color: '#1A2B4A' },
+  statLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#1A2B4A', marginBottom: 8 },
+  subSectionTitle: { fontSize: 13, fontWeight: 'bold', color: '#64748B', marginBottom: 10 },
+  radiusChip: { backgroundColor: 'white', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#CBD5E1' },
+  radiusChipActive: { backgroundColor: '#1A2B4A', borderColor: '#1A2B4A' },
+  radiusChipText: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  radiusChipTextActive: { color: '#F5A623', fontWeight: 'bold' },
+  activeWarningCard: { backgroundColor: '#FEF3C7', padding: 10, borderRadius: 8, marginBottom: 12 },
+  activeWarningText: { color: '#92400E', fontSize: 12, fontWeight: '600' },
+  jobCard: { backgroundColor: 'white', padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  disabledJobCard: { opacity: 0.6 },
+  jobHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  jobBadge: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  jobBadgeText: { color: '#334155', fontSize: 11, fontWeight: 'bold' },
+  distanceBadge: { color: '#2563EB', fontSize: 12, fontWeight: 'bold' },
+  jobFare: { fontSize: 20, fontWeight: 'bold', color: '#10B981', marginBottom: 6 },
+  jobAddress: { fontSize: 13, color: '#334155', marginBottom: 10, fontWeight: '500' },
+  jobFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  jobMeta: { fontSize: 12, color: '#64748B' },
+  jobAction: { fontSize: 12, color: '#F5A623', fontWeight: 'bold' },
+  emptyContainer: { padding: 30, alignItems: 'center' },
+  emptyTitle: { fontSize: 16, fontWeight: 'bold', color: '#64748B' },
+  emptySubtitle: { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 6, lineHeight: 18 },
 });

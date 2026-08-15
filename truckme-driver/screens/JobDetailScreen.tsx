@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import client from '../api/client';
 import { AuthUser, DriverProfile, Vehicle } from '../types';
+import { getCurrentDeviceLocation } from '../services/locationService';
 
 interface Props {
   user: AuthUser;
@@ -72,21 +73,18 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
   const postGpsPoint = async (currentStatus?: string) => {
     try {
-      const baseLat = 6.9271;
-      const baseLng = 79.8612;
-      const lat = baseLat + (Math.random() - 0.5) * 0.02;
-      const lng = baseLng + (Math.random() - 0.5) * 0.02;
+      const coords = await getCurrentDeviceLocation();
 
       await client.post('/api/tracking', {
         bookingId: jobId,
         driverId: driver.id,
-        latitude: lat,
-        longitude: lng,
-        speedKph: 25 + Math.random() * 30,
-        headingDegrees: Math.random() * 360,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        speedKph: coords.speed || (25 + Math.random() * 20),
+        headingDegrees: coords.heading || Math.random() * 360,
         status: currentStatus || job?.status || 'EnRoute',
       });
-      console.log('[GPS] Automated broadcast posted for job', jobId);
+      console.log('[GPS] Automated broadcast posted for job', jobId, coords);
     } catch (e: any) {
       console.warn('[GPS] Automated broadcast failed:', e?.message);
     }
