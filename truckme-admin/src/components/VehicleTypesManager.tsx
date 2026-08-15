@@ -8,6 +8,14 @@ interface VehicleTypesManagerProps {
   onRefresh: () => void;
 }
 
+interface ConfirmState {
+  type: 'edit' | 'delete';
+  title: string;
+  warningMessage: string;
+  details?: string[];
+  onConfirm: () => Promise<void>;
+}
+
 export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicleTypes, onRefresh }) => {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -21,6 +29,9 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
   const [minCapacityKg, setMinCapacityKg] = useState(500);
   const [maxCapacityKg, setMaxCapacityKg] = useState(1500);
   const [submitting, setSubmitting] = useState(false);
+
+  // Safety Confirmation Popup Modal state
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -48,13 +59,41 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
     setShowModal(true);
   };
 
-  const handleSaveVehicleType = async (e: React.FormEvent) => {
+  // Form submit handler with safety confirmation prompt
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) {
       alert('Please enter a vehicle type name.');
       return;
     }
 
+    const originalItem = vehicleTypes.find((v) => v.id === editingId);
+
+    if (editingId && originalItem) {
+      // Trigger confirmation popup before saving edit changes
+      const details = [
+        `Vehicle Name: ${name}`,
+        `Base Rate: LKR ${originalItem.basePrice.toLocaleString()} ➔ LKR ${Number(basePrice).toLocaleString()}`,
+        `Per KM Rate: LKR ${originalItem.pricePerKm.toLocaleString()} ➔ LKR ${Number(pricePerKm).toLocaleString()}`,
+        `Capacity: ${minCapacityKg} - ${maxCapacityKg} kg`,
+      ];
+
+      setConfirmState({
+        type: 'edit',
+        title: '⚠️ Confirm Rate & Vehicle Data Update',
+        warningMessage:
+          'Caution: Modifying pricing rates will immediately change dispatch fare calculations for all new customer bookings across the platform.',
+        details,
+        onConfirm: async () => {
+          await executeSave();
+        },
+      });
+    } else {
+      executeSave();
+    }
+  };
+
+  const executeSave = async () => {
     setSubmitting(true);
     try {
       const payload = {
@@ -81,6 +120,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
       }
 
       setShowModal(false);
+      setConfirmState(null);
       onRefresh();
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Failed to save vehicle type');
@@ -89,18 +129,32 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
     }
   };
 
-  const handleDeleteVehicleType = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to REMOVE vehicle type '${name}'?`)) return;
+  // Safe delete handler with prominent warning popup
+  const promptDeleteVehicleType = (id: string, vehicleName: string) => {
+    const details = [
+      `Target Vehicle: ${vehicleName}`,
+      'Impact: New customer bookings for this vehicle category will be disabled.',
+      'Driver Impact: Drivers assigned to this class will require category reassignment.',
+    ];
 
-    try {
-      await axios.delete(`${API_HOST}/api/vehicletypes/${id}`, {
-        headers: { 'bypass-tunnel-reminder': 'true' },
-      });
-      alert(`Vehicle type '${name}' removed successfully!`);
-      onRefresh();
-    } catch (err) {
-      alert('Failed to remove vehicle type');
-    }
+    setConfirmState({
+      type: 'delete',
+      title: '🚨 Permanent Vehicle Removal Safety Warning',
+      warningMessage: `Are you sure you want to PERMANENTLY REMOVE '${vehicleName}' from the active fleet catalog?`,
+      details,
+      onConfirm: async () => {
+        try {
+          await axios.delete(`${API_HOST}/api/vehicletypes/${id}`, {
+            headers: { 'bypass-tunnel-reminder': 'true' },
+          });
+          alert(`Vehicle type '${vehicleName}' removed successfully!`);
+          setConfirmState(null);
+          onRefresh();
+        } catch (err) {
+          alert('Failed to remove vehicle type');
+        }
+      },
+    });
   };
 
   return (
@@ -118,6 +172,93 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
         </button>
       </div>
 
+      {/* Safety Confirmation Modal Popup */}
+      {confirmState && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(26, 43, 74, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+          }}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '20px',
+              padding: '28px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: confirmState.type === 'delete' ? '2px solid var(--red)' : '2px solid var(--orange)',
+            }}
+          >
+            <div style={{ fontSize: '18px', fontWeight: 800, color: confirmState.type === 'delete' ? 'var(--red)' : 'var(--navy)', marginBottom: '12px' }}>
+              {confirmState.title}
+            </div>
+
+            <div style={{ fontSize: '14px', color: '#334155', lineHeight: 1.5, marginBottom: '16px', fontWeight: 600 }}>
+              {confirmState.warningMessage}
+            </div>
+
+            {confirmState.details && (
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '14px', borderRadius: '12px', marginBottom: '20px', fontSize: '13px' }}>
+                <div style={{ fontWeight: 800, color: 'var(--navy)', marginBottom: '6px' }}>Summary of Changes:</div>
+                {confirmState.details.map((d, i) => (
+                  <div key={i} style={{ color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
+                    • {d}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={confirmState.onConfirm}
+                style={{
+                  flex: 1,
+                  background: confirmState.type === 'delete' ? 'var(--red)' : 'var(--orange)',
+                  color: confirmState.type === 'delete' ? 'white' : 'var(--navy)',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                }}
+              >
+                {confirmState.type === 'delete' ? 'Yes, Permanently Delete 🗑️' : 'Confirm & Save Changes ✓'}
+              </button>
+              <button
+                onClick={() => setConfirmState(null)}
+                style={{
+                  flex: 1,
+                  background: '#F1F5F9',
+                  color: 'var(--navy)',
+                  border: '1px solid var(--border)',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Form Modal */}
       {showModal && (
         <div
           style={{
@@ -155,7 +296,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
               </button>
             </div>
 
-            <form onSubmit={handleSaveVehicleType} style={{ display: 'grid', gap: '12px' }}>
+            <form onSubmit={handleFormSubmit} style={{ display: 'grid', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>Vehicle Type Name *</label>
                 <input
@@ -324,7 +465,7 @@ export const VehicleTypesManager: React.FC<VehicleTypesManagerProps> = ({ vehicl
                       <button
                         className="btn-reject"
                         style={{ padding: '6px 10px', fontSize: '12px' }}
-                        onClick={() => handleDeleteVehicleType(v.id, v.name)}
+                        onClick={() => promptDeleteVehicleType(v.id, v.name)}
                       >
                         Remove 🗑️
                       </button>
