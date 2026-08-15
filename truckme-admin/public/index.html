@@ -3,48 +3,53 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TruckMe | Admin Fleet Control & Master Executive Dashboard</title>
-  <!-- Google Fonts & Leaflet CSS for Live Fleet Map -->
+  <title>TruckMe Fleet & Platform Control Center Dashboard</title>
+  
+  <!-- Google Fonts & Leaflet CSS -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+  
   <style>
     :root {
-      --bg-dark: #0B132B;
-      --bg-card: #1C2541;
       --navy: #1A2B4A;
+      --navy-light: #243B66;
       --orange: #F5A623;
-      --orange-hover: #E09012;
+      --orange-hover: #E09212;
+      --bg: #F4F7FB;
+      --card-bg: #FFFFFF;
+      --text-main: #1A2B4A;
+      --text-muted: #5A6B85;
       --green: #27AE60;
-      --red: #EB5757;
-      --blue: #2F80ED;
-      --text-main: #FFFFFF;
-      --text-muted: #8B9BB4;
-      --border-color: rgba(255, 255, 255, 0.1);
+      --red: #E74C3C;
+      --blue: #2980B9;
+      --border: #E2E8F0;
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
 
     body {
-      background-color: var(--bg-dark);
+      background-color: var(--bg);
       color: var(--text-main);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
 
-    /* Top Navbar */
     header {
-      background: rgba(28, 37, 65, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border-color);
+      background-color: var(--navy);
+      color: white;
       padding: 16px 32px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
       position: sticky;
       top: 0;
       z-index: 1000;
@@ -57,227 +62,359 @@
     }
 
     .brand-icon {
-      font-size: 28px;
+      background: var(--orange);
+      color: var(--navy);
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
     }
 
     .brand-title {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 800;
-      background: linear-gradient(135deg, #FFFFFF, var(--orange));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
     }
 
-    .brand-sub {
+    .brand-subtitle {
       font-size: 11px;
-      color: var(--text-muted);
-      letter-spacing: 1px;
+      color: #A0AEC0;
+      font-weight: 600;
       text-transform: uppercase;
-      font-weight: 700;
+      letter-spacing: 1px;
     }
 
-    .nav-stats-pill {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .status-badge {
+    .live-indicator {
       display: flex;
       align-items: center;
       gap: 8px;
-      background: rgba(39, 174, 96, 0.15);
-      border: 1px solid var(--green);
+      background: rgba(255,255,255,0.08);
       padding: 6px 14px;
       border-radius: 20px;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--green);
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 13px;
+      font-weight: 600;
     }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
       background-color: var(--green);
-      box-shadow: 0 0 10px var(--green);
-      animation: pulse 2s infinite;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7);
+      animation: pulse 1.8s infinite;
     }
 
     @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.4; }
-      100% { opacity: 1; }
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(39, 174, 96, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(39, 174, 96, 0); }
     }
 
-    /* Container */
     .container {
-      flex: 1;
-      padding: 32px;
-      max-width: 1600px;
+      max-width: 1440px;
       margin: 0 auto;
+      padding: 24px 32px;
       width: 100%;
+      flex: 1;
     }
 
-    /* KPI Cards Grid */
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px;
-      margin-bottom: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
     }
 
     .kpi-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
+      background: var(--card-bg);
       border-radius: 16px;
-      padding: 24px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      border: 1px solid var(--border);
       position: relative;
       overflow: hidden;
-      transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-
-    .kpi-card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(245, 166, 35, 0.4);
     }
 
     .kpi-title {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-muted);
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
+      letter-spacing: 0.8px;
     }
 
     .kpi-value {
-      font-size: 32px;
+      font-size: 26px;
       font-weight: 800;
-      color: var(--text-main);
-      margin-bottom: 6px;
+      color: var(--navy);
+      margin: 8px 0 4px 0;
     }
 
     .kpi-sub {
       font-size: 12px;
-      color: var(--text-muted);
+      color: var(--green);
+      font-weight: 700;
     }
 
     .kpi-icon-bg {
       position: absolute;
       right: 16px;
       bottom: 16px;
-      font-size: 44px;
-      opacity: 0.15;
+      font-size: 42px;
+      opacity: 0.08;
+      pointer-events: none;
     }
 
-    /* Tabs Bar */
     .tabs-header {
       display: flex;
-      gap: 12px;
+      gap: 10px;
+      border-bottom: 2px solid var(--border);
       margin-bottom: 24px;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 12px;
+      overflow-x: auto;
+      padding-bottom: 2px;
     }
 
     .tab-btn {
-      background: transparent;
+      background: none;
       border: none;
-      color: var(--text-muted);
-      padding: 10px 20px;
+      padding: 12px 20px;
       font-size: 14px;
       font-weight: 700;
-      border-radius: 10px;
+      color: var(--text-muted);
       cursor: pointer;
+      border-bottom: 3px solid transparent;
       transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
     .tab-btn:hover {
-      color: var(--text-main);
-      background: rgba(255, 255, 255, 0.05);
-    }
-
-    .tab-btn.active {
-      background: var(--orange);
       color: var(--navy);
     }
 
-    /* Tab Contents */
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    /* Live Fleet Map Section */
-    #map-container {
-      height: 600px;
-      border-radius: 16px;
-      overflow: hidden;
-      border: 1px solid var(--border-color);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    .tab-btn.active {
+      color: var(--navy);
+      border-bottom-color: var(--orange);
     }
 
-    /* Pending KYC Approvals Grid */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      min-width: 320px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    .search-box input {
+      border: none;
+      outline: none;
+      width: 100%;
+      font-size: 14px;
+      margin-left: 8px;
+    }
+
+    .filter-chips {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chip-btn {
+      background: white;
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chip-btn.active {
+      background: var(--navy);
+      color: white;
+      border-color: var(--navy);
+    }
+
+    /* Table Styles */
+    .table-container {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background-color: #F8FAFC;
+      color: var(--text-muted);
+      font-weight: 800;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.6px;
+    }
+
+    td {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: #F8FAFC;
+    }
+
+    .status-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 800;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .status-Approved, .status-Delivered, .status-Completed, .status-Active {
+      background: #E8F8F0;
+      color: var(--green);
+    }
+
+    .status-PendingApproval, .status-Pending, .status-Searching, .status-Loading, .status-ArrivedAtPickup {
+      background: #FFF5E5;
+      color: #D97706;
+    }
+
+    .status-InTransit, .status-Assigned {
+      background: #EBF5FF;
+      color: var(--blue);
+    }
+
+    .status-Cancelled, .status-Suspended, .status-Blocked, .status-Offline {
+      background: #FEE2E2;
+      color: var(--red);
+    }
+
+    .status-Online {
+      background: #E8F8F0;
+      color: var(--green);
+    }
+
+    .user-avatar-sm {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--navy);
+      color: var(--orange);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    #map-container {
+      height: 580px;
+      width: 100%;
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+    }
+
     .kyc-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: 24px;
+      gap: 20px;
     }
 
     .kyc-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
+      background: white;
       border-radius: 16px;
+      border: 1px solid var(--border);
       padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     }
 
     .kyc-user-row {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
+      margin-bottom: 14px;
     }
 
     .kyc-avatar {
-      width: 50px;
-      height: 50px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
-      background: var(--orange);
-      color: var(--navy);
+      background: var(--navy);
+      color: var(--orange);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 800;
     }
 
-    .kyc-name { font-size: 16px; font-weight: 800; }
-    .kyc-phone { font-size: 12px; color: var(--text-muted); }
+    .kyc-name {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--navy);
+    }
+
+    .kyc-phone {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
 
     .kyc-license-img {
       width: 100%;
       height: 180px;
       object-fit: cover;
       border-radius: 10px;
-      border: 1px solid var(--border-color);
+      margin: 12px 0;
+      border: 1px solid var(--border);
     }
-
-    .kyc-meta {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      font-size: 12px;
-      background: rgba(0, 0, 0, 0.2);
-      padding: 12px;
-      border-radius: 8px;
-    }
-
-    .kyc-meta-label { color: var(--text-muted); font-weight: 600; }
-    .kyc-meta-val { font-weight: 700; color: var(--orange); }
 
     .kyc-actions {
       display: flex;
-      gap: 12px;
+      gap: 10px;
+      margin-top: 14px;
     }
 
     .btn-approve {
@@ -285,90 +422,58 @@
       background: var(--green);
       color: white;
       border: none;
-      padding: 12px;
+      padding: 10px;
       border-radius: 8px;
       font-weight: 800;
       cursor: pointer;
-      transition: opacity 0.2s ease;
     }
 
     .btn-reject {
-      background: rgba(235, 87, 87, 0.15);
+      flex: 1;
+      background: #FEE2E2;
       color: var(--red);
-      border: 1px solid var(--red);
-      padding: 12px 20px;
+      border: none;
+      padding: 10px;
       border-radius: 8px;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
     }
 
-    /* Bookings Audit Table */
-    .table-container {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      overflow: hidden;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-    }
-
-    th {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 16px 20px;
-      font-size: 12px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      letter-spacing: 0.5px;
+    .btn-action {
+      background: #F1F5F9;
+      color: var(--navy);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
       font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
     }
 
-    td {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border-color);
-      font-size: 13px;
+    .btn-action:hover {
+      background: var(--navy);
+      color: white;
     }
-
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    .status-tag {
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 800;
-      display: inline-block;
-    }
-
-    .status-Delivered, .status-Completed { background: rgba(39, 174, 96, 0.2); color: var(--green); }
-    .status-Assigned, .status-InTransit { background: rgba(47, 128, 237, 0.2); color: var(--blue); }
-    .status-Pending, .status-Searching { background: rgba(245, 166, 35, 0.2); color: var(--orange); }
-    .status-Loading, .status-Arrived, .status-ArrivedAtPickup { background: rgba(245, 166, 35, 0.3); color: #F5A623; border: 1px solid #F5A623; }
   </style>
 </head>
 <body>
 
-  <!-- Top Navbar -->
   <header>
     <div class="brand">
-      <span class="brand-icon">🚛</span>
+      <div class="brand-icon">🚛</div>
       <div>
-        <div class="brand-title">TruckMe Admin</div>
-        <div class="brand-sub">Fleet Control & Operations Master</div>
+        <div class="brand-title">TruckMe Control Center</div>
+        <div class="brand-subtitle">Enterprise Logistics & Fleet Dispatch</div>
       </div>
     </div>
-
-    <div class="nav-stats-pill">
-      <div class="status-badge">
-        <div class="status-dot"></div>
-        <span>API Live Connected</span>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div class="live-indicator">
+        <div class="pulse-dot"></div>
+        Live System Active
       </div>
-      <button onclick="fetchData()" style="background: var(--orange); color: var(--navy); border: none; padding: 8px 16px; border-radius: 8px; font-weight: 800; cursor: pointer;">
-        🔄 Refresh Live Feed
+      <button onclick="fetchData()" style="background: var(--orange); color: var(--navy); border: none; padding: 10px 18px; border-radius: 10px; font-weight: 800; cursor: pointer;">
+        🔄 Refresh Feed
       </button>
     </div>
   </header>
@@ -387,15 +492,15 @@
       <div class="kpi-card">
         <div class="kpi-title">Active Fleet Online</div>
         <div class="kpi-value" id="kpi-active-fleet">0 Drivers</div>
-        <div class="kpi-sub" id="kpi-active-trips">10 Active Trips</div>
+        <div class="kpi-sub" id="kpi-active-trips">0 Active Trips In Progress</div>
         <div class="kpi-icon-bg">📡</div>
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-title">Completed Deliveries</div>
-        <div class="kpi-value" id="kpi-completed">0 Trips</div>
-        <div class="kpi-sub" id="kpi-total-bookings">Out of 0 Bookings</div>
-        <div class="kpi-icon-bg">📦</div>
+        <div class="kpi-title">Registered Customers</div>
+        <div class="kpi-value" id="kpi-customers">0 Customers</div>
+        <div class="kpi-sub" id="kpi-total-bookings">Out of 0 Total Bookings</div>
+        <div class="kpi-icon-bg">👥</div>
       </div>
 
       <div class="kpi-card">
@@ -409,9 +514,11 @@
     <!-- Navigation Tabs -->
     <div class="tabs-header">
       <button class="tab-btn active" onclick="switchTab('map')">🗺️ Live Fleet Map</button>
-      <button class="tab-btn" onclick="switchTab('kyc')">📜 Driver License Verification Queue (<span id="tab-kyc-count">0</span>)</button>
-      <button class="tab-btn" onclick="switchTab('payouts')">💸 Driver Payout Requests (<span id="tab-payout-count">0</span>)</button>
-      <button class="tab-btn" onclick="switchTab('bookings')">📋 Global Bookings Audit Log</button>
+      <button class="tab-btn" onclick="switchTab('customers')">👥 Customers (<span id="tab-customers-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('drivers')">🚛 Driver Partners (<span id="tab-drivers-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('kyc')">📜 KYC Verification Queue (<span id="tab-kyc-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('bookings')">📊 Trips & Dispatch Monitor</button>
+      <button class="tab-btn" onclick="switchTab('payouts')">💸 Bank Payouts (<span id="tab-payout-count">0</span>)</button>
     </div>
 
     <!-- Tab 1: Live Fleet Map -->
@@ -419,14 +526,107 @@
       <div id="map-container"></div>
     </div>
 
-    <!-- Tab 2: Driver KYC Verification -->
+    <!-- Tab 2: Customers Directory -->
+    <div id="tab-customers" class="tab-content">
+      <div class="controls-bar">
+        <div class="search-box">
+          🔍 <input type="text" id="customer-search-input" placeholder="Search customers by name, phone, email..." onkeyup="filterCustomers()" />
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer Name</th>
+              <th>Contact Phone</th>
+              <th>Email Address</th>
+              <th>Total Trips</th>
+              <th>Total Spent (LKR)</th>
+              <th>Account Status</th>
+              <th>Joined Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="customers-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 3: Driver Partners Directory -->
+    <div id="tab-drivers" class="tab-content">
+      <div class="controls-bar">
+        <div class="search-box">
+          🔍 <input type="text" id="driver-search-input" placeholder="Search drivers by name, plate number, phone..." onkeyup="filterDrivers()" />
+        </div>
+        <div class="filter-chips">
+          <button class="chip-btn active" onclick="filterDriverStatus('all', event)">All Drivers</button>
+          <button class="chip-btn" onclick="filterDriverStatus('online', event)">🟢 Online Only</button>
+          <button class="chip-btn" onclick="filterDriverStatus('approved', event)">✓ Approved</button>
+          <button class="chip-btn" onclick="filterDriverStatus('pending', event)">⏳ Pending Approval</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Driver Partner</th>
+              <th>Phone Number</th>
+              <th>Vehicle Type & Plate</th>
+              <th>Rating ⭐</th>
+              <th>Trips Completed</th>
+              <th>Earnings (LKR)</th>
+              <th>Live Status</th>
+              <th>KYC Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="drivers-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 4: Driver KYC Verification -->
     <div id="tab-kyc" class="tab-content">
       <div class="kyc-grid" id="kyc-container">
         <!-- Rendered dynamically -->
       </div>
     </div>
 
-    <!-- Tab 3: Driver Bank Payout Requests -->
+    <!-- Tab 5: Trips & Dispatch Monitor -->
+    <div id="tab-bookings" class="tab-content">
+      <div class="controls-bar">
+        <div class="search-box">
+          🔍 <input type="text" id="booking-search-input" placeholder="Search trips by booking #, customer, driver..." onkeyup="filterBookings()" />
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Booking #</th>
+              <th>Customer</th>
+              <th>Pickup Address</th>
+              <th>Driver Partner</th>
+              <th>Cargo Info</th>
+              <th>Total Fare (LKR)</th>
+              <th>Platform Comm (15%)</th>
+              <th>Driver Payout</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="bookings-table-body">
+            <!-- Rendered dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 6: Driver Bank Payout Requests -->
     <div id="tab-payouts" class="tab-content">
       <div class="table-container">
         <table>
@@ -448,30 +648,10 @@
       </div>
     </div>
 
-    <!-- Tab 4: Global Bookings Audit Log -->
-    <div id="tab-bookings" class="tab-content">
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Booking #</th>
-              <th>Customer</th>
-              <th>Pickup Address</th>
-              <th>Driver Partner</th>
-              <th>Total Fare</th>
-              <th>Status</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody id="bookings-table-body">
-            <!-- Rendered dynamically -->
-          </tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
 
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const getApiBaseUrl = () => {
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -480,7 +660,7 @@
       if (window.location.hostname.includes('192.168.')) {
         return `http://${window.location.hostname}:5084`;
       }
-      return 'https://pads-mrs-harbour-nick.trycloudflare.com';
+      return 'https://boat-tex-ing-designed.trycloudflare.com';
     };
 
     const API_HOST = getApiBaseUrl();
@@ -488,20 +668,27 @@
     let map = null;
     let markersGroup = null;
 
+    let globalCustomers = [];
+    let globalDrivers = [];
+    let globalBookings = [];
+    let driverStatusFilter = 'all';
+
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
-      event.target.classList.add('active');
-      document.getElementById(`tab-${tabId}`).classList.add('active');
+      const targetBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick')?.includes(`'${tabId}'`));
+      if (targetBtn) targetBtn.classList.add('active');
 
-      if (tabId === 'map') {
+      const targetContent = document.getElementById(`tab-${tabId}`);
+      if (targetContent) targetContent.classList.add('active');
+
+      if (tabId === 'map' && map) {
         setTimeout(() => map.invalidateSize(), 200);
       }
     }
 
     function initMap() {
-      // Default centered on Colombo, Sri Lanka
       map = L.map('map-container').setView([6.9271, 79.8612], 12);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
@@ -516,16 +703,16 @@
         const sRes = await fetch(`${API_BASE}/dashboard-stats`);
         const stats = await sRes.json();
 
-        document.getElementById('kpi-revenue').innerText = `LKR ${Math.round(stats.totalRevenue).toLocaleString()}`;
-        document.getElementById('kpi-commission').innerText = `Platform 15% Comm: LKR ${Math.round(stats.platformCommission).toLocaleString()}`;
-        document.getElementById('kpi-active-fleet').innerText = `${stats.onlineDrivers} Online`;
-        document.getElementById('kpi-active-trips').innerText = `${stats.activeDeliveries} Active Trips In Progress`;
-        document.getElementById('kpi-completed').innerText = `${stats.completedDeliveries} Trips`;
-        document.getElementById('kpi-total-bookings').innerText = `Out of ${stats.totalBookings} Total Bookings`;
-        document.getElementById('kpi-pending-kyc').innerText = `${stats.pendingApprovals} Applicants`;
-        document.getElementById('tab-kyc-count').innerText = stats.pendingApprovals;
+        document.getElementById('kpi-revenue').innerText = `LKR ${Math.round(stats.totalRevenue || 0).toLocaleString()}`;
+        document.getElementById('kpi-commission').innerText = `Platform 15% Comm: LKR ${Math.round(stats.platformCommission || 0).toLocaleString()}`;
+        document.getElementById('kpi-active-fleet').innerText = `${stats.onlineDrivers || 0} Online`;
+        document.getElementById('kpi-active-trips').innerText = `${stats.activeDeliveries || 0} Active Trips In Progress`;
+        document.getElementById('kpi-customers').innerText = `${stats.totalCustomers || 0} Customers`;
+        document.getElementById('kpi-total-bookings').innerText = `Out of ${stats.totalBookings || 0} Total Bookings`;
+        document.getElementById('kpi-pending-kyc').innerText = `${stats.pendingApprovals || 0} Applicants`;
+        document.getElementById('tab-kyc-count').innerText = stats.pendingApprovals || 0;
 
-        // 2. Live Fleet Map Data
+        // 2. Live Fleet Map
         const fRes = await fetch(`${API_BASE}/live-fleet`);
         const fleet = await fRes.json();
 
@@ -545,7 +732,7 @@
               <strong style="font-size:14px;">${driver.driverName}</strong><br/>
               <span style="color:#5A6B85; font-size:12px;">📞 ${driver.phone}</span><br/>
               <span style="color:#27AE60; font-weight:800; font-size:12px;">🚛 ${driver.vehicleType} (${driver.vehiclePlateNumber})</span><br/>
-              <span style="font-size:11px; color:#F5A623;">⭐ ${driver.ratingAverage.toFixed(1)} Rating</span>
+              <span style="font-size:11px; color:#F5A623;">⭐ ${(driver.ratingAverage || 4.9).toFixed(1)} Rating</span>
             </div>
           `;
 
@@ -554,7 +741,19 @@
             .bindPopup(popupContent);
         });
 
-        // 3. Driver KYC Verification Queue
+        // 3. Customers Directory
+        const cRes = await fetch(`${API_BASE}/customers`);
+        globalCustomers = await cRes.json();
+        document.getElementById('tab-customers-count').innerText = globalCustomers.length;
+        renderCustomers(globalCustomers);
+
+        // 4. Drivers Directory
+        const dRes = await fetch(`${API_BASE}/drivers/all`);
+        globalDrivers = await dRes.json();
+        document.getElementById('tab-drivers-count').innerText = globalDrivers.length;
+        renderDrivers(globalDrivers);
+
+        // 5. Driver KYC Verification Queue
         const kRes = await fetch(`${API_BASE}/drivers/pending-approval`);
         const kycList = await kRes.json();
         const kycContainer = document.getElementById('kyc-container');
@@ -565,18 +764,18 @@
           kycContainer.innerHTML = kycList.map(d => `
             <div class="kyc-card">
               <div class="kyc-user-row">
-                <div class="kyc-avatar">${d.fullName[0] || 'D'}</div>
+                <div class="kyc-avatar">${(d.fullName || 'D')[0]}</div>
                 <div>
                   <div class="kyc-name">${d.fullName}</div>
                   <div class="kyc-phone">📞 ${d.phone || 'N/A'} • ${d.email || 'Driver Partner'}</div>
                 </div>
               </div>
               <img class="kyc-license-img" src="${d.licenseImageUrl}" alt="License Document" />
-              <div class="kyc-meta">
-                <div><span class="kyc-meta-label">License #:</span> <span class="kyc-meta-val">${d.licenseNumber}</span></div>
-                <div><span class="kyc-meta-label">Vehicle Plate:</span> <span class="kyc-meta-val">${d.vehiclePlateNumber}</span></div>
-                <div><span class="kyc-meta-label">Vehicle Class:</span> <span class="kyc-meta-val">${d.vehicleType}</span></div>
-                <div><span class="kyc-meta-label">Status:</span> <span style="color:var(--orange); font-weight:800;">Pending Review</span></div>
+              <div class="kyc-meta" style="font-size:12px; display:grid; gap:4px;">
+                <div><strong>License #:</strong> ${d.licenseNumber}</div>
+                <div><strong>Vehicle Plate:</strong> ${d.vehiclePlateNumber}</div>
+                <div><strong>Vehicle Class:</strong> ${d.vehicleType}</div>
+                <div><strong>Status:</strong> <span style="color:var(--orange); font-weight:800;">Pending Review</span></div>
               </div>
               <div class="kyc-actions">
                 <button class="btn-approve" onclick="verifyDriver('${d.id}', true)">Approve License & Activate</button>
@@ -586,7 +785,12 @@
           `).join('');
         }
 
-        // 4. Driver Payout Requests
+        // 6. Global Bookings Audit Log
+        const bRes = await fetch(`${API_BASE}/bookings`);
+        globalBookings = await bRes.json();
+        renderBookings(globalBookings);
+
+        // 7. Driver Bank Payout Requests
         const pRes = await fetch(`${API_HOST}/api/payouts/admin/pending`);
         const payoutsList = await pRes.json();
         document.getElementById('tab-payout-count').innerText = payoutsList.length;
@@ -610,30 +814,150 @@
           `).join('');
         }
 
-        // 5. Global Bookings Table
-        const bRes = await fetch(`${API_BASE}/bookings`);
-        const bookings = await bRes.json();
-        const tableBody = document.getElementById('bookings-table-body');
-
-        tableBody.innerHTML = bookings.slice(0, 15).map(b => `
-          <tr>
-            <td style="font-weight:800; color:var(--orange);">${b.bookingNumber}</td>
-            <td><strong>${b.customerName}</strong><br/><span style="color:var(--text-muted); font-size:11px;">${b.customerPhone}</span></td>
-            <td>📍 ${b.pickupAddress}</td>
-            <td>🚛 ${b.driverName}<br/><span style="color:var(--text-muted); font-size:11px;">${b.vehiclePlate}</span></td>
-            <td style="font-weight:800; color:var(--green);">LKR ${Math.round(b.totalFare).toLocaleString()}</td>
-            <td><span class="status-tag status-${b.status}">${b.status}</span></td>
-            <td style="color:var(--text-muted); font-size:12px;">${new Date(b.createdAt).toLocaleDateString()}</td>
-          </tr>
-        `).join('');
-
       } catch (err) {
         console.error('[Admin Dashboard Error]', err);
       }
     }
 
+    function renderCustomers(list) {
+      const body = document.getElementById('customers-table-body');
+      if (!list || list.length === 0) {
+        body.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted); font-weight:700;">No registered customers found.</td></tr>`;
+        return;
+      }
+      body.innerHTML = list.map(c => `
+        <tr>
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="user-avatar-sm">${(c.fullName || 'C')[0]}</div>
+              <div>
+                <strong>${c.fullName}</strong>
+              </div>
+            </div>
+          </td>
+          <td>📞 ${c.phoneNumber || 'N/A'}</td>
+          <td>✉️ ${c.email}</td>
+          <td><strong style="color:var(--navy);">${c.totalTrips} Trips</strong></td>
+          <td><strong style="color:var(--green);">LKR ${c.totalSpent.toLocaleString()}</strong></td>
+          <td><span class="status-tag ${c.isActive ? 'status-Active' : 'status-Suspended'}">${c.isActive ? 'Active' : 'Suspended'}</span></td>
+          <td style="color:var(--text-muted); font-size:12px;">${new Date(c.createdAt).toLocaleDateString()}</td>
+          <td>
+            <button class="btn-action" onclick="toggleCustomerStatus('${c.id}')">${c.isActive ? 'Suspend' : 'Activate'}</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterCustomers() {
+      const query = document.getElementById('customer-search-input').value.toLowerCase();
+      const filtered = globalCustomers.filter(c =>
+        c.fullName.toLowerCase().includes(query) ||
+        (c.phoneNumber && c.phoneNumber.includes(query)) ||
+        (c.email && c.email.toLowerCase().includes(query))
+      );
+      renderCustomers(filtered);
+    }
+
+    async function toggleCustomerStatus(id) {
+      if (!confirm('Are you sure you want to change this customer account status?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/customers/${id}/toggle-status`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.message || 'Customer status updated');
+        fetchData();
+      } catch (e) {
+        alert('Failed to update status');
+      }
+    }
+
+    function renderDrivers(list) {
+      const body = document.getElementById('drivers-table-body');
+      if (!list || list.length === 0) {
+        body.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-muted); font-weight:700;">No driver partners found.</td></tr>`;
+        return;
+      }
+      body.innerHTML = list.map(d => `
+        <tr>
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="user-avatar-sm" style="background:var(--orange); color:var(--navy);">${(d.fullName || 'D')[0]}</div>
+              <div>
+                <strong>${d.fullName}</strong><br/>
+                <span style="font-size:11px; color:var(--text-muted);">${d.email}</span>
+              </div>
+            </div>
+          </td>
+          <td>📞 ${d.phoneNumber || 'N/A'}</td>
+          <td><strong>${d.vehicleType || 'Truck'}</strong><br/><span style="color:var(--text-muted); font-size:11px;">Plate: ${d.vehiclePlateNumber || 'N/A'}</span></td>
+          <td><strong style="color:var(--orange);">⭐ ${(d.ratingAverage || 4.9).toFixed(1)}</strong></td>
+          <td><strong>${d.totalCompletedJobs || 0} Jobs</strong></td>
+          <td><strong style="color:var(--green);">LKR ${Math.round(d.totalEarnings || 0).toLocaleString()}</strong></td>
+          <td><span class="status-tag ${d.isOnline ? 'status-Online' : 'status-Offline'}">${d.isOnline ? '🟢 Online' : '⚫ Offline'}</span></td>
+          <td><span class="status-tag ${d.isApproved ? 'status-Approved' : 'status-PendingApproval'}">${d.isApproved ? '✓ Verified' : '⏳ Pending'}</span></td>
+          <td>
+            <button class="btn-action" onclick="verifyDriver('${d.id}', ${!d.isApproved})">${d.isApproved ? 'Revoke Approval' : 'Approve ✓'}</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterDrivers() {
+      const query = document.getElementById('driver-search-input').value.toLowerCase();
+      let filtered = globalDrivers.filter(d =>
+        d.fullName.toLowerCase().includes(query) ||
+        (d.vehiclePlateNumber && d.vehiclePlateNumber.toLowerCase().includes(query)) ||
+        (d.phoneNumber && d.phoneNumber.includes(query))
+      );
+
+      if (driverStatusFilter === 'online') filtered = filtered.filter(d => d.isOnline);
+      else if (driverStatusFilter === 'approved') filtered = filtered.filter(d => d.isApproved);
+      else if (driverStatusFilter === 'pending') filtered = filtered.filter(d => !d.isApproved);
+
+      renderDrivers(filtered);
+    }
+
+    function filterDriverStatus(status, event) {
+      driverStatusFilter = status;
+      document.querySelectorAll('.filter-chips .chip-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      filterDrivers();
+    }
+
+    function renderBookings(list) {
+      const body = document.getElementById('bookings-table-body');
+      if (!list || list.length === 0) {
+        body.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-muted); font-weight:700;">No trips recorded yet.</td></tr>`;
+        return;
+      }
+      body.innerHTML = list.map(b => `
+        <tr>
+          <td style="font-weight:800; color:var(--orange);">${b.bookingNumber}</td>
+          <td><strong>${b.customerName}</strong><br/><span style="color:var(--text-muted); font-size:11px;">${b.customerPhone}</span></td>
+          <td>📍 ${b.pickupAddress}</td>
+          <td>🚛 ${b.driverName}<br/><span style="color:var(--text-muted); font-size:11px;">${b.vehiclePlate}</span></td>
+          <td>📦 ${b.cargoType || 'Dry'} (${b.cargoWeightKg || 500}kg)</td>
+          <td><strong style="color:var(--navy);">LKR ${Math.round(b.totalFare || 0).toLocaleString()}</strong></td>
+          <td><span style="color:var(--green); font-weight:700;">LKR ${Math.round(b.commission || b.totalFare * 0.15).toLocaleString()}</span></td>
+          <td><strong style="color:var(--blue);">LKR ${Math.round(b.driverPayout || b.totalFare * 0.85).toLocaleString()}</strong></td>
+          <td><span class="status-tag status-${b.status}">${b.status}</span></td>
+          <td style="color:var(--text-muted); font-size:12px;">${new Date(b.createdAt).toLocaleDateString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    function filterBookings() {
+      const query = document.getElementById('booking-search-input').value.toLowerCase();
+      const filtered = globalBookings.filter(b =>
+        b.bookingNumber.toLowerCase().includes(query) ||
+        b.customerName.toLowerCase().includes(query) ||
+        b.driverName.toLowerCase().includes(query) ||
+        b.pickupAddress.toLowerCase().includes(query)
+      );
+      renderBookings(filtered);
+    }
+
     async function verifyDriver(driverId, approve) {
-      if (!confirm(`Are you sure you want to ${approve ? 'APPROVE' : 'REJECT'} this driver license?`)) return;
+      if (!confirm(`Are you sure you want to ${approve ? 'APPROVE' : 'REJECT/REVOKE'} this driver partner?`)) return;
 
       try {
         const res = await fetch(`${API_BASE}/drivers/${driverId}/verify`, {
@@ -642,7 +966,7 @@
           body: JSON.stringify({ isApproved: approve })
         });
         const data = await res.json();
-        alert(data.message || 'Driver verification updated!');
+        alert(data.message || 'Driver status updated!');
         fetchData();
       } catch (e) {
         alert('Failed to update driver status');
@@ -650,7 +974,7 @@
     }
 
     async function approvePayout(payoutId, driverName, amount) {
-      const bankRef = prompt(`Enter Sri Lankan Bank Transfer Reference Number for ${driverName} (LKR ${amount.toLocaleString()}):`, `REF-${Math.floor(100000 + Math.random() * 900000)}`);
+      const bankRef = prompt(`Enter Bank Transfer Reference Number for ${driverName} (LKR ${amount.toLocaleString()}):`, `REF-${Math.floor(100000 + Math.random() * 900000)}`);
       if (!bankRef) return;
 
       try {
@@ -670,7 +994,7 @@
     window.onload = () => {
       initMap();
       fetchData();
-      setInterval(fetchData, 10000); // Auto-refresh every 10 seconds
+      setInterval(fetchData, 10000);
     };
   </script>
 </body>

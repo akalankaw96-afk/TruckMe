@@ -35,6 +35,7 @@ public class AdminController : ControllerBase
             .SumAsync(b => b.Commission > 0 ? b.Commission : b.TotalFare * 0.15m);
 
         var totalDrivers = await _context.Drivers.CountAsync();
+        var totalCustomers = await _context.Users.CountAsync(u => u.Role == UserRole.Customer);
         var onlineDrivers = await _context.Drivers.CountAsync(d => d.IsOnline);
         var pendingApprovals = await _context.Drivers.CountAsync(d => !d.IsApproved);
 
@@ -46,6 +47,7 @@ public class AdminController : ControllerBase
             totalRevenue = Math.Round(totalRevenue, 2),
             platformCommission = Math.Round(platformCommission, 2),
             totalDrivers,
+            totalCustomers,
             onlineDrivers,
             pendingApprovals,
             timestamp = DateTime.UtcNow
@@ -129,7 +131,7 @@ public class AdminController : ControllerBase
         var vehicles = await _context.Vehicles.Where(v => v.DriverId == driver.Id || v.DriverId == driver.UserId).ToListAsync();
         foreach (var v in vehicles)
         {
-            v.ApprovalStatus = dto.IsApproved ? "Approved" : "PendingApproval";
+            v.Status = dto.IsApproved ? VehicleStatus.Active : VehicleStatus.Inactive;
         }
 
         await _context.SaveChangesAsync();
@@ -143,7 +145,102 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
-    /// Gets global audit log of all bookings across the platform.
+    /// Gets all registered customers with total trip count and total spent (LKR).
+    /// </summary>
+    [HttpGet("customers")]
+    public async Task<IActionResult> GetAllCustomers()
+    {
+        var customers = await _context.Users
+            .AsNoTracking()
+            .Where(u => u.Role == UserRole.Customer)
+            .OrderByDescending(u => u.CreatedAt)
+            .ToListAsync();
+
+        var customerIds = customers.Select(c => c.Id).ToList();
+
+        var bookingStats = await _context.Bookings
+            .AsNoTracking()
+            .Where(b => customerIds.Contains(b.CustomerId))
+            .GroupBy(b => b.CustomerId)
+            .Select(g => new
+            {
+                CustomerId = g.Key,
+                TripCount = g.Count(),
+                TotalSpent = g.Sum(b => b.TotalFare)
+            })
+            .ToDictionaryAsync(x => x.CustomerId, x => x);
+
+        var result = customers.Select(c => new
+        {
+            id = c.Id,
+            fullName = c.FullName,
+            email = c.Email,
+            phoneNumber = c.PhoneNumber,
+            totalTrips = bookingStats.TryGetValue(c.Id, out var stat) ? stat.TripCount : 0,
+            totalSpent = Math.Round(bookingStats.TryGetValue(c.Id, out var stat2) ? stat2.TotalSpent : 0m, 2),
+            isActive = c.IsActive,
+            createdAt = c.CreatedAt
+        });
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Toggles active/blocked status for a customer account.
+    /// </summary>
+    [HttpPost("customers/{id:guid}/toggle-status")]
+    public async Task<IActionResult> ToggleCustomerStatus(Guid id)
+    {
+        var customer = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.Role == UserRole.Customer);
+        if (customer == null) return NotFound(new { message = "Customer profile not found" });
+
+        customer.IsActive = !customer.IsActive;
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = customer.IsActive ? "Customer account activated" : "Customer account suspended",
+            customerId = customer.Id,
+            isActive = customer.IsActive
+        });
+    }
+
+    /// <summary>
+    /// Gets complete directory of all driver partners.
+    /// </summary>
+    [HttpGet("drivers/all")]
+    public async Task<IActionResult> GetAllDrivers()
+    {
+        var drivers = await _context.Drivers
+            .Include(d => d.User)
+            .AsNoTracking()
+            .OrderByDescending(d => d.CreatedAt)
+            .ToListAsync();
+
+        var result = drivers.Select(d => new
+        {
+            id = d.Id,
+            userId = d.UserId,
+            fullName = d.User?.FullName ?? "Driver Partner",
+            email = d.User?.Email ?? "driver@truckme.lk",
+            phoneNumber = d.User?.PhoneNumber ?? "+94770000000",
+            licenseNumber = d.LicenseNumber,
+            vehiclePlateNumber = d.VehiclePlateNumber ?? "WP-CAB-1234",
+            vehicleType = d.VehicleType.ToString(),
+            isOnline = d.IsOnline,
+            isApproved = d.IsApproved,
+            status = d.Status.ToString(),
+            ratingAverage = d.RatingAverage > 0 ? d.RatingAverage : 4.9m,
+            totalCompletedJobs = d.TotalCompletedJobs,
+            totalEarnings = d.TotalEarnings,
+            createdAt = d.CreatedAt
+        });
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Gets global audit log of all bookings with full fare and cargo details across the platform.
     /// </summary>
     [HttpGet("bookings")]
     public async Task<IActionResult> GetAllBookings([FromQuery] string? status)
@@ -170,7 +267,15 @@ public class AdminController : ControllerBase
             driverName = b.Driver?.User?.FullName ?? "Unassigned",
             driverPhone = b.Driver?.User?.PhoneNumber ?? "N/A",
             vehiclePlate = b.Driver?.VehiclePlateNumber ?? "N/A",
+            cargoType = b.CargoType.ToString(),
+            cargoDescription = b.CargoDescription,
+            cargoWeightKg = b.CargoWeightKg,
+            baseFare = b.BaseFare,
+            distanceFare = b.DistanceFare,
+            addOnFare = b.AddOnFare,
             totalFare = b.TotalFare,
+            driverPayout = b.DriverPayout,
+            commission = b.Commission,
             status = b.Status.ToString(),
             createdAt = b.CreatedAt,
             completedAt = b.CompletedAt

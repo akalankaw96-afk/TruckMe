@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 
 // Set to null to use fast, 100% reliable local network API (http://192.168.8.122:5084)
 // Or set to an active public tunnel URL if testing remotely outside local Wi-Fi
-const CUSTOM_PUBLIC_API_URL: string | null = 'https://pads-mrs-harbour-nick.trycloudflare.com';
+const CUSTOM_PUBLIC_API_URL: string | null = 'https://boat-tex-ing-designed.trycloudflare.com';
 
 const getApiBaseUrl = () => {
   if (CUSTOM_PUBLIC_API_URL) {

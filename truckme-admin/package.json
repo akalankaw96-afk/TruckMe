@@ -1,13 +1,27 @@
 {
   "name": "truckme-admin",
+  "private": true,
   "version": "1.0.0",
-  "description": "TruckMe Fleet Control & Master Executive Web Dashboard",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "vite --port 8083 --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview --port 8083 --host",
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "axios": "^1.7.2",
+    "express": "^4.19.2",
+    "leaflet": "^1.9.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.12",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
   }
 }

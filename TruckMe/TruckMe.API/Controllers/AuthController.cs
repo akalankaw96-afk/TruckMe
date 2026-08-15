@@ -207,9 +207,10 @@ public class AuthController : ControllerBase
                     Id = Guid.NewGuid(),
                     DriverId = driver.Id,
                     PlateNumber = dto.VehiclePlate.Trim(),
-                    VehicleType = string.IsNullOrWhiteSpace(dto.VehicleType) ? "1-Ton Truck" : dto.VehicleType.Trim(),
+                    Model = string.IsNullOrWhiteSpace(dto.VehicleType) ? "1-Ton Truck" : dto.VehicleType.Trim(),
+                    Size = TruckMe.Domain.Enums.VehicleSize.OneTon,
                     CapacityKg = 1000,
-                    ApprovalStatus = "PendingApproval",
+                    Status = TruckMe.Domain.Enums.VehicleStatus.Active,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };

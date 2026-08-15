@@ -394,7 +394,7 @@ public class BookingsController : ControllerBase
 
             // Dynamic Recalculation on Arrival at Dropoff / Unloading / Delivered
             double actualDistanceKm = 0;
-            if (parsedStatus == BookingStatus.AtDropoff || parsedStatus == BookingStatus.Unloading || parsedStatus == BookingStatus.Delivered || parsedStatus == BookingStatus.Completed)
+            if (dto.Status.Equals("AtDropoff", StringComparison.OrdinalIgnoreCase) || parsedStatus == BookingStatus.AtDeliveryStop || parsedStatus == BookingStatus.Unloading || parsedStatus == BookingStatus.Delivered || parsedStatus == BookingStatus.Completed)
             {
                 if (parsedStatus == BookingStatus.Delivered || parsedStatus == BookingStatus.Completed)
                 {

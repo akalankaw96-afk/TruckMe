@@ -5,6 +5,7 @@ using TruckMe.Application.Common.Interfaces;
 using TruckMe.Application.Features.Vehicles.CreateVehicle;
 using TruckMe.Application.Features.Vehicles.GetDriverVehicles;
 using TruckMe.Domain.Entities;
+using TruckMe.Domain.Enums;
 
 namespace TruckMe.API.Controllers;
 
@@ -48,9 +49,10 @@ public class VehiclesController : ControllerBase
                 Id = Guid.NewGuid(),
                 DriverId = driver.Id,
                 PlateNumber = plate,
-                VehicleType = vehicleTypeName,
-                CapacityKg = dto.CapacityKg > 0 ? dto.CapacityKg : 1000,
-                ApprovalStatus = "Approved",
+                Model = vehicleTypeName,
+                Size = VehicleSize.OneTon,
+                CapacityKg = dto.CapacityKg > 0 ? (int)dto.CapacityKg : 1000,
+                Status = VehicleStatus.Active,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -59,8 +61,8 @@ public class VehiclesController : ControllerBase
         else
         {
             vehicle.PlateNumber = plate;
-            vehicle.VehicleType = vehicleTypeName;
-            vehicle.CapacityKg = dto.CapacityKg > 0 ? dto.CapacityKg : vehicle.CapacityKg;
+            vehicle.Model = vehicleTypeName;
+            vehicle.CapacityKg = dto.CapacityKg > 0 ? (int)dto.CapacityKg : vehicle.CapacityKg;
             vehicle.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -85,7 +87,7 @@ public class VehiclesController : ControllerBase
         if (vehicles.Any())
         {
             return Ok(vehicles.Select(v => {
-                string vType = v.VehicleType ?? "Truck";
+                string vType = !string.IsNullOrEmpty(v.Model) ? v.Model : v.Size.ToString();
                 string[] parts = vType.Split(' ', 2);
                 string make = parts.Length > 0 ? parts[0] : "";
                 string model = parts.Length > 1 ? parts[1] : "";
@@ -98,9 +100,9 @@ public class VehiclesController : ControllerBase
                     model = model,
                     year = 2023,
                     color = "White",
-                    capacityKg = v.CapacityKg > 0 ? (int)v.CapacityKg : 1000,
-                    approvalStatus = v.ApprovalStatus ?? "Approved",
-                    vehicleTypeName = v.VehicleType ?? $"{make} {model}".Trim()
+                    capacityKg = v.CapacityKg > 0 ? v.CapacityKg : 1000,
+                    approvalStatus = v.Status.ToString(),
+                    vehicleTypeName = vType
                 };
             }).ToList());
         }
