@@ -695,21 +695,36 @@ public class BookingsController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(text)) return (6.9271, 79.8612);
         string lower = text.ToLowerInvariant();
-        if (lower.Contains("kandy")) return (7.2906, 80.6337);
+        if (lower.Contains("ratnapura") || lower.Contains("rathnapura")) return (6.6828, 80.3992);
+        if (lower.Contains("boralesgamuwa") || lower.Contains("boralesgamuva")) return (6.8480, 79.9050);
+        if (lower.Contains("kandy") || lower.Contains("peradeniya")) return (7.2906, 80.6337);
         if (lower.Contains("galle")) return (6.0535, 80.2210);
-        if (lower.Contains("negombo")) return (7.2083, 79.8358);
+        if (lower.Contains("negombo") || lower.Contains("katunayake")) return (7.2083, 79.8358);
         if (lower.Contains("gampaha")) return (7.0840, 79.9925);
         if (lower.Contains("kurunegala")) return (7.4863, 80.3647);
         if (lower.Contains("malabe")) return (6.9040, 79.9600);
         if (lower.Contains("maharagama")) return (6.8480, 79.9265);
-        if (lower.Contains("ratnapura")) return (6.6828, 80.3992);
+        if (lower.Contains("nugegoda")) return (6.8744, 79.8862);
+        if (lower.Contains("battaramulla")) return (6.8990, 79.9224);
+        if (lower.Contains("kaduwela")) return (6.9329, 79.9839);
+        if (lower.Contains("homagama")) return (6.8436, 80.0031);
+        if (lower.Contains("bambalapitiya")) return (6.8920, 79.8550);
+        if (lower.Contains("wellawatte")) return (6.8720, 79.8610);
+        if (lower.Contains("kollupitiya")) return (6.8970, 79.8555);
+        if (lower.Contains("pettah")) return (6.9320, 79.8550);
+        if (lower.Contains("maradana")) return (6.9210, 79.8650);
+        if (lower.Contains("borella")) return (6.9050, 79.8720);
         if (lower.Contains("anuradhapura")) return (8.3114, 80.4037);
         if (lower.Contains("jaffna")) return (9.6615, 80.0255);
-        if (lower.Contains("trincomalee")) return (8.5874, 81.2152);
+        if (lower.Contains("trincomalee") || lower.Contains("trinco")) return (8.5874, 81.2152);
         if (lower.Contains("matara")) return (5.9549, 80.5550);
-        if (lower.Contains("bambalapitiya")) return (6.8920, 79.8550);
         if (lower.Contains("kiribathgoda")) return (7.0011, 79.9220);
         if (lower.Contains("kadawatha")) return (7.0017, 79.9530);
+        if (lower.Contains("panadura")) return (6.7130, 79.9074);
+        if (lower.Contains("kalutara")) return (6.5854, 79.9607);
+        if (lower.Contains("hambantota")) return (6.1241, 81.1185);
+        if (lower.Contains("badulla")) return (6.9934, 81.0550);
+        if (lower.Contains("nuwara")) return (6.9497, 80.7891);
         return (6.9271, 79.8612);
     }
 }

@@ -390,7 +390,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
                 width="100%"
                 height="100%"
                 frameBorder="0"
-                src={`https://maps.google.com/maps?q=${mapDestLat},${mapDestLng}&z=15&output=embed`}
+                src={`https://maps.google.com/maps?q=${mapDestLat},${mapDestLng}+(${encodeURIComponent(mapAddressLabel)})&z=14&output=embed`}
                 style={{ border: 'none', width: '100%', height: '100%' }}
               />
             ) : (

@@ -24,27 +24,57 @@ const SIMULATED_DRIVING_WAYPOINTS: LocationCoords[] = [
   { latitude: 6.9271, longitude: 79.8612 }, // Return to Fort
 ];
 
-// Sri Lankan city coordinate dictionary for resolving pickup & dropoff coordinates from address strings
+// Comprehensive Sri Lankan city & area coordinate dictionary for location matching
 const CITY_COORDINATES: Record<string, { latitude: number; longitude: number }> = {
   colombo: { latitude: 6.9271, longitude: 79.8612 },
-  kandy: { latitude: 7.2906, longitude: 80.6337 },
-  galle: { latitude: 6.0535, longitude: 80.2210 },
-  negombo: { latitude: 7.2083, longitude: 79.8358 },
-  gampaha: { latitude: 7.0840, longitude: 79.9925 },
-  kurunegala: { latitude: 7.4863, longitude: 80.3647 },
-  malabe: { latitude: 6.9040, longitude: 79.9600 },
-  maharagama: { latitude: 6.8480, longitude: 79.9265 },
-  ratnapura: { latitude: 6.6828, longitude: 80.3992 },
-  anuradhapura: { latitude: 8.3114, longitude: 80.4037 },
-  jaffna: { latitude: 9.6615, longitude: 80.0255 },
-  trincomalee: { latitude: 8.5874, longitude: 81.2152 },
-  matara: { latitude: 5.9549, longitude: 80.5550 },
-  bambalapitiya: { latitude: 6.8920, longitude: 79.8550 },
-  kiribathgoda: { latitude: 7.0011, longitude: 79.9220 },
-  kadawatha: { latitude: 7.0017, longitude: 79.9530 },
+  fort: { latitude: 6.9344, longitude: 79.8428 },
   pettah: { latitude: 6.9320, longitude: 79.8550 },
   maradana: { latitude: 6.9210, longitude: 79.8650 },
   borella: { latitude: 6.9050, longitude: 79.8720 },
+  kollupitiya: { latitude: 6.8970, longitude: 79.8555 },
+  bambalapitiya: { latitude: 6.8920, longitude: 79.8550 },
+  wellawatte: { latitude: 6.8720, longitude: 79.8610 },
+  nugegoda: { latitude: 6.8744, longitude: 79.8862 },
+  maharagama: { latitude: 6.8480, longitude: 79.9265 },
+  homagama: { latitude: 6.8436, longitude: 80.0031 },
+  malabe: { latitude: 6.9040, longitude: 79.9600 },
+  battaramulla: { latitude: 6.8990, longitude: 79.9224 },
+  kaduwela: { latitude: 6.9329, longitude: 79.9839 },
+  kiribathgoda: { latitude: 7.0011, longitude: 79.9220 },
+  kadawatha: { latitude: 7.0017, longitude: 79.9530 },
+  gampaha: { latitude: 7.0840, longitude: 79.9925 },
+  negombo: { latitude: 7.2083, longitude: 79.8358 },
+  katunayake: { latitude: 7.1654, longitude: 79.8845 },
+  ratnapura: { latitude: 6.6828, longitude: 80.3992 },
+  rathnapura: { latitude: 6.6828, longitude: 80.3992 },
+  boralesgamuwa: { latitude: 6.8480, longitude: 79.9050 },
+  boralesgamuva: { latitude: 6.8480, longitude: 79.9050 },
+  kandy: { latitude: 7.2906, longitude: 80.6337 },
+  peradeniya: { latitude: 7.2606, longitude: 80.5962 },
+  galle: { latitude: 6.0535, longitude: 80.2210 },
+  matara: { latitude: 5.9549, longitude: 80.5550 },
+  hambantota: { latitude: 6.1241, longitude: 81.1185 },
+  kurunegala: { latitude: 7.4863, longitude: 80.3647 },
+  kegalle: { latitude: 7.2513, longitude: 80.3464 },
+  kegalla: { latitude: 7.2513, longitude: 80.3464 },
+  anuradhapura: { latitude: 8.3114, longitude: 80.4037 },
+  polonnaruwa: { latitude: 7.9403, longitude: 81.0188 },
+  dambulla: { latitude: 7.8742, longitude: 80.6511 },
+  matale: { latitude: 7.4675, longitude: 80.6234 },
+  jaffna: { latitude: 9.6615, longitude: 80.0255 },
+  vavuniya: { latitude: 8.7514, longitude: 80.4971 },
+  trincomalee: { latitude: 8.5874, longitude: 81.2152 },
+  batticaloa: { latitude: 7.7170, longitude: 81.7000 },
+  ampara: { latitude: 7.2833, longitude: 81.6667 },
+  kalmunai: { latitude: 7.4167, longitude: 81.8333 },
+  badulla: { latitude: 6.9934, longitude: 81.0550 },
+  bandarawela: { latitude: 6.8322, longitude: 80.9856 },
+  nuwara: { latitude: 6.9497, longitude: 80.7891 },
+  eliya: { latitude: 6.9497, longitude: 80.7891 },
+  panadura: { latitude: 6.7130, longitude: 79.9074 },
+  kalutara: { latitude: 6.5854, longitude: 79.9607 },
+  bentota: { latitude: 6.4239, longitude: 79.9984 },
+  hikkaduwa: { latitude: 6.1396, longitude: 80.1011 },
 };
 
 /**
@@ -69,9 +99,9 @@ export function resolveAddressCoordinates(
  * Launches external turn-by-turn navigation (Google Maps / Apple Maps) for driver.
  */
 export function openExternalNavigation(latitude: number, longitude: number, label: string) {
-  const encodedLabel = encodeURIComponent(label || 'Pickup Location');
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-  const appleMapsUrl = `maps://maps.apple.com/?daddr=${latitude},${longitude}&q=${encodedLabel}`;
+  const query = label ? encodeURIComponent(label) : `${latitude},${longitude}`;
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${query}`;
+  const appleMapsUrl = `maps://maps.apple.com/?q=${query}&sll=${latitude},${longitude}`;
 
   if (typeof window !== 'undefined') {
     window.open(googleMapsUrl, '_blank');
