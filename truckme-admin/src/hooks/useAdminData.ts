@@ -9,6 +9,7 @@ import {
   KycApplicant,
   BookingRecord,
   PayoutRequest,
+  VehicleTypeOption,
 } from '../types';
 
 export function useAdminData() {
@@ -19,6 +20,7 @@ export function useAdminData() {
   const [kycQueue, setKycQueue] = useState<KycApplicant[]>([]);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleTypeOption[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export function useAdminData() {
   const fetchAll = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     try {
-      const [sRes, fRes, cRes, dRes, kRes, bRes, pRes] = await Promise.all([
+      const [sRes, fRes, cRes, dRes, kRes, bRes, pRes, vRes] = await Promise.all([
         adminClient.get<DashboardStats>('/dashboard-stats').catch(() => ({ data: null })),
         adminClient.get<LiveFleetDriver[]>('/live-fleet').catch(() => ({ data: [] })),
         adminClient.get<CustomerUser[]>('/customers').catch(() => ({ data: [] })),
@@ -34,6 +36,7 @@ export function useAdminData() {
         adminClient.get<KycApplicant[]>('/drivers/pending-approval').catch(() => ({ data: [] })),
         adminClient.get<BookingRecord[]>('/bookings').catch(() => ({ data: [] })),
         axios.get<PayoutRequest[]>(`${API_HOST}/api/payouts/admin/pending`, { headers: { 'bypass-tunnel-reminder': 'true' } }).catch(() => ({ data: [] })),
+        axios.get<VehicleTypeOption[]>(`${API_HOST}/api/vehicletypes`, { headers: { 'bypass-tunnel-reminder': 'true' } }).catch(() => ({ data: [] })),
       ]);
 
       if (sRes.data) setStats(sRes.data);
@@ -43,6 +46,7 @@ export function useAdminData() {
       if (Array.isArray(kRes.data)) setKycQueue(kRes.data);
       if (Array.isArray(bRes.data)) setBookings(bRes.data);
       if (Array.isArray(pRes.data)) setPayouts(pRes.data);
+      if (Array.isArray(vRes.data)) setVehicleTypes(vRes.data);
 
       setError(null);
     } catch (err: any) {
@@ -68,6 +72,7 @@ export function useAdminData() {
     kycQueue,
     bookings,
     payouts,
+    vehicleTypes,
     loading,
     refreshing,
     error,

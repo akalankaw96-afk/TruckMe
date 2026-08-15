@@ -283,6 +283,27 @@ public class AdminController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Vehicle types management endpoints.
+    /// </summary>
+    [HttpGet("vehicle-types")]
+    public IActionResult GetAdminVehicleTypes()
+    {
+        return RedirectToAction("GetVehicleTypes", "VehicleTypes");
+    }
+
+    [HttpPost("vehicle-types")]
+    public IActionResult AddAdminVehicleType([FromBody] VehicleTypeDto dto)
+    {
+        return RedirectToAction("AddVehicleType", "VehicleTypes", dto);
+    }
+
+    [HttpDelete("vehicle-types/{id}")]
+    public IActionResult DeleteAdminVehicleType(string id)
+    {
+        return RedirectToAction("DeleteVehicleType", "VehicleTypes", new { id });
+    }
 }
 
 public class VerifyDriverDto
@@ -290,3 +311,4 @@ public class VerifyDriverDto
     public bool IsApproved { get; set; }
     public string? Remarks { get; set; }
 }
+

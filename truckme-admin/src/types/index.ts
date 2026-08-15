@@ -106,3 +106,15 @@ export interface PayoutRequest {
   status: string;
   requestedAt: string;
 }
+
+export interface VehicleTypeOption {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  description: string;
+  basePrice: number;
+  pricePerKm: number;
+  minCapacityKg: number;
+  maxCapacityKg: number;
+}
