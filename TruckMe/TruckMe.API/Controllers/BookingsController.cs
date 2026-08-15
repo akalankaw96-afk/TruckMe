@@ -119,14 +119,28 @@ public class BookingsController : ControllerBase
             int seq = 1;
             foreach (var stop in request.DeliveryStops)
             {
+                decimal stopLat = stop.Latitude;
+                decimal stopLng = stop.Longitude;
+                if (stopLat == 0m)
+                {
+                    var resStop = ResolveCityCoordinates(stop.Address);
+                    stopLat = (decimal)resStop.lat;
+                    stopLng = (decimal)resStop.lng;
+                    if (stopLat == 6.9271m && !stop.Address.ToLower().Contains("colombo"))
+                    {
+                        stopLat = lat + (seq * 0.02m);
+                        stopLng = lng + (seq * 0.02m);
+                    }
+                }
+
                 booking.DeliveryStops.Add(new DeliveryStop
                 {
                     Id = Guid.NewGuid(),
                     BookingId = booking.Id,
                     Sequence = seq++,
                     Address = stop.Address,
-                    Latitude = stop.Latitude != 0 ? stop.Latitude : (lat + (seq * 0.02m)),
-                    Longitude = stop.Longitude != 0 ? stop.Longitude : (lng + (seq * 0.02m)),
+                    Latitude = stopLat,
+                    Longitude = stopLng,
                     RecipientName = !string.IsNullOrWhiteSpace(stop.RecipientName) ? stop.RecipientName : "Recipient",
                     RecipientPhone = !string.IsNullOrWhiteSpace(stop.RecipientPhone) ? stop.RecipientPhone : user.PhoneNumber,
                     Notes = stop.Notes,
@@ -283,19 +297,33 @@ public class BookingsController : ControllerBase
             status = booking.Status.ToString(),
             cancellationReason = booking.CancellationReason,
             createdAt = booking.CreatedAt,
-            deliveryStops = booking.DeliveryStops.OrderBy(s => s.Sequence).Select(s => new
+            deliveryStops = booking.DeliveryStops.OrderBy(s => s.Sequence).Select(s =>
             {
-                id = s.Id,
-                sequence = s.Sequence,
-                address = s.Address,
-                latitude = s.Latitude,
-                longitude = s.Longitude,
-                recipientName = s.RecipientName,
-                recipientPhone = s.RecipientPhone,
-                notes = s.Notes,
-                status = s.Status.ToString(),
-                arrivedAt = s.ArrivedAt,
-                completedAt = s.CompletedAt
+                decimal sLat = s.Latitude;
+                decimal sLng = s.Longitude;
+                if (sLat == 0m || (sLat >= 6.96m && sLat <= 6.98m && !s.Address.ToLower().Contains("colombo")))
+                {
+                    var resStop = ResolveCityCoordinates(s.Address);
+                    if (resStop.lat != 6.9271 || s.Address.ToLower().Contains("colombo") || s.Address.ToLower().Contains("boralesgamuwa"))
+                    {
+                        sLat = (decimal)resStop.lat;
+                        sLng = (decimal)resStop.lng;
+                    }
+                }
+                return new
+                {
+                    id = s.Id,
+                    sequence = s.Sequence,
+                    address = s.Address,
+                    latitude = sLat,
+                    longitude = sLng,
+                    recipientName = s.RecipientName,
+                    recipientPhone = s.RecipientPhone,
+                    notes = s.Notes,
+                    status = s.Status.ToString(),
+                    arrivedAt = s.ArrivedAt,
+                    completedAt = s.CompletedAt
+                };
             }).ToList()
         };
 
