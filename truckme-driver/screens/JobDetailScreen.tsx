@@ -990,6 +990,11 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
                 <Pressable style={podStyles.submitBtn} onPress={submitPod} disabled={busy}>
                   {busy ? <ActivityIndicator color="white" /> : <Text style={podStyles.submitBtnText}>✓ Verify PoD & Finish</Text>}
                 </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* Unloading Waiting / Detention Surcharge Modal */}
         <Modal visible={showSurchargeModal} animationType="fade" transparent>
           <View style={podStyles.overlay}>
