@@ -10,7 +10,7 @@ const getApiBaseUrl = () => {
       return `http://${hostname}:5084`;
     }
   }
-  return 'https://attraction-will-orleans-dates.trycloudflare.com';
+  return 'https://equal-series-ethics-lance.trycloudflare.com';
 };
 
 export const API_HOST = getApiBaseUrl();
