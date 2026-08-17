@@ -665,6 +665,17 @@
 
     const API_HOST = getApiBaseUrl();
     const API_BASE = `${API_HOST}/api/admin`;
+
+    async function customFetch(url, options = {}) {
+      const defaultHeaders = {
+        'Content-Type': 'application/json',
+        'bypass-tunnel-reminder': 'true',
+        'ngrok-skip-browser-warning': 'true',
+      };
+      options.headers = { ...defaultHeaders, ...(options.headers || {}) };
+      return fetch(url, options);
+    }
+
     let map = null;
     let markersGroup = null;
 
@@ -700,7 +711,7 @@
     async function fetchData() {
       try {
         // 1. Dashboard Stats
-        const sRes = await fetch(`${API_BASE}/dashboard-stats`);
+        const sRes = await customFetch(`${API_BASE}/dashboard-stats`);
         const stats = await sRes.json();
 
         document.getElementById('kpi-revenue').innerText = `LKR ${Math.round(stats.totalRevenue || 0).toLocaleString()}`;
@@ -713,7 +724,7 @@
         document.getElementById('tab-kyc-count').innerText = stats.pendingApprovals || 0;
 
         // 2. Live Fleet Map
-        const fRes = await fetch(`${API_BASE}/live-fleet`);
+        const fRes = await customFetch(`${API_BASE}/live-fleet`);
         const fleet = await fRes.json();
 
         markersGroup.clearLayers();
@@ -742,19 +753,19 @@
         });
 
         // 3. Customers Directory
-        const cRes = await fetch(`${API_BASE}/customers`);
+        const cRes = await customFetch(`${API_BASE}/customers`);
         globalCustomers = await cRes.json();
         document.getElementById('tab-customers-count').innerText = globalCustomers.length;
         renderCustomers(globalCustomers);
 
         // 4. Drivers Directory
-        const dRes = await fetch(`${API_BASE}/drivers/all`);
+        const dRes = await customFetch(`${API_BASE}/drivers/all`);
         globalDrivers = await dRes.json();
         document.getElementById('tab-drivers-count').innerText = globalDrivers.length;
         renderDrivers(globalDrivers);
 
         // 5. Driver KYC Verification Queue
-        const kRes = await fetch(`${API_BASE}/drivers/pending-approval`);
+        const kRes = await customFetch(`${API_BASE}/drivers/pending-approval`);
         const kycList = await kRes.json();
         const kycContainer = document.getElementById('kyc-container');
 
@@ -786,12 +797,12 @@
         }
 
         // 6. Global Bookings Audit Log
-        const bRes = await fetch(`${API_BASE}/bookings`);
+        const bRes = await customFetch(`${API_BASE}/bookings`);
         globalBookings = await bRes.json();
         renderBookings(globalBookings);
 
         // 7. Driver Bank Payout Requests
-        const pRes = await fetch(`${API_HOST}/api/payouts/admin/pending`);
+        const pRes = await customFetch(`${API_HOST}/api/payouts/admin/pending`);
         const payoutsList = await pRes.json();
         document.getElementById('tab-payout-count').innerText = payoutsList.length;
         const payoutsBody = document.getElementById('payouts-table-body');
@@ -858,18 +869,6 @@
       renderCustomers(filtered);
     }
 
-    async function toggleCustomerStatus(id) {
-      if (!confirm('Are you sure you want to change this customer account status?')) return;
-      try {
-        const res = await fetch(`${API_BASE}/customers/${id}/toggle-status`, { method: 'POST' });
-        const data = await res.json();
-        alert(data.message || 'Customer status updated');
-        fetchData();
-      } catch (e) {
-        alert('Failed to update status');
-      }
-    }
-
     function renderDrivers(list) {
       const body = document.getElementById('drivers-table-body');
       if (!list || list.length === 0) {
@@ -880,47 +879,54 @@
         <tr>
           <td>
             <div style="display:flex; align-items:center; gap:10px;">
-              <div class="user-avatar-sm" style="background:var(--orange); color:var(--navy);">${(d.fullName || 'D')[0]}</div>
+              <div class="user-avatar-sm">${(d.fullName || 'D')[0]}</div>
               <div>
                 <strong>${d.fullName}</strong><br/>
-                <span style="font-size:11px; color:var(--text-muted);">${d.email}</span>
+                <span style="color:var(--text-muted); font-size:11px;">${d.email || 'Partner'}</span>
               </div>
             </div>
           </td>
-          <td>📞 ${d.phoneNumber || 'N/A'}</td>
-          <td><strong>${d.vehicleType || 'Truck'}</strong><br/><span style="color:var(--text-muted); font-size:11px;">Plate: ${d.vehiclePlateNumber || 'N/A'}</span></td>
-          <td><strong style="color:var(--orange);">⭐ ${(d.ratingAverage || 4.9).toFixed(1)}</strong></td>
-          <td><strong>${d.totalCompletedJobs || 0} Jobs</strong></td>
+          <td>📞 ${d.phone || 'N/A'}</td>
+          <td><strong>${d.vehicleType}</strong><br/><span style="color:var(--text-muted); font-size:11px;">${d.vehiclePlateNumber}</span></td>
+          <td><strong style="color:var(--orange);">${(d.ratingAverage || 4.9).toFixed(1)} ⭐</strong></td>
+          <td><strong style="color:var(--navy);">${d.totalCompletedJobs || 0} Trips</strong></td>
           <td><strong style="color:var(--green);">LKR ${Math.round(d.totalEarnings || 0).toLocaleString()}</strong></td>
-          <td><span class="status-tag ${d.isOnline ? 'status-Online' : 'status-Offline'}">${d.isOnline ? '🟢 Online' : '⚫ Offline'}</span></td>
-          <td><span class="status-tag ${d.isApproved ? 'status-Approved' : 'status-PendingApproval'}">${d.isApproved ? '✓ Verified' : '⏳ Pending'}</span></td>
+          <td><span class="status-tag ${d.isOnline ? 'status-Online' : 'status-Offline'}">${d.isOnline ? '🟢 Online' : '⚪ Offline'}</span></td>
+          <td><span class="status-tag ${d.isApproved ? 'status-Approved' : 'status-PendingApproval'}">${d.isApproved ? 'Approved' : 'Pending'}</span></td>
           <td>
-            <button class="btn-action" onclick="verifyDriver('${d.id}', ${!d.isApproved})">${d.isApproved ? 'Revoke Approval' : 'Approve ✓'}</button>
+            <button class="btn-action" onclick="verifyDriver('${d.id}', ${!d.isApproved})">${d.isApproved ? 'Revoke' : 'Approve'}</button>
           </td>
         </tr>
       `).join('');
     }
 
-    function filterDrivers() {
-      const query = document.getElementById('driver-search-input').value.toLowerCase();
-      let filtered = globalDrivers.filter(d =>
-        d.fullName.toLowerCase().includes(query) ||
-        (d.vehiclePlateNumber && d.vehiclePlateNumber.toLowerCase().includes(query)) ||
-        (d.phoneNumber && d.phoneNumber.includes(query))
-      );
+    function filterDriverStatus(status, event) {
+      driverStatusFilter = status;
+      document.querySelectorAll('.filter-chips .chip-btn').forEach(btn => btn.classList.remove('active'));
+      if (event && event.target) event.target.classList.add('active');
 
-      if (driverStatusFilter === 'online') filtered = filtered.filter(d => d.isOnline);
-      else if (driverStatusFilter === 'approved') filtered = filtered.filter(d => d.isApproved);
-      else if (driverStatusFilter === 'pending') filtered = filtered.filter(d => !d.isApproved);
+      let filtered = globalDrivers;
+      if (status === 'online') filtered = globalDrivers.filter(d => d.isOnline);
+      if (status === 'approved') filtered = globalDrivers.filter(d => d.isApproved);
+      if (status === 'pending') filtered = globalDrivers.filter(d => !d.isApproved);
 
       renderDrivers(filtered);
     }
 
-    function filterDriverStatus(status, event) {
-      driverStatusFilter = status;
-      document.querySelectorAll('.filter-chips .chip-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
-      filterDrivers();
+    function filterDrivers() {
+      const query = document.getElementById('driver-search-input').value.toLowerCase();
+      let list = globalDrivers;
+
+      if (driverStatusFilter === 'online') list = list.filter(d => d.isOnline);
+      if (driverStatusFilter === 'approved') list = list.filter(d => d.isApproved);
+      if (driverStatusFilter === 'pending') list = list.filter(d => !d.isApproved);
+
+      const filtered = list.filter(d =>
+        d.fullName.toLowerCase().includes(query) ||
+        d.vehiclePlateNumber.toLowerCase().includes(query) ||
+        (d.phone && d.phone.includes(query))
+      );
+      renderDrivers(filtered);
     }
 
     function renderBookings(list) {
@@ -931,14 +937,14 @@
       }
       body.innerHTML = list.map(b => `
         <tr>
-          <td style="font-weight:800; color:var(--orange);">${b.bookingNumber}</td>
-          <td><strong>${b.customerName}</strong><br/><span style="color:var(--text-muted); font-size:11px;">${b.customerPhone}</span></td>
-          <td>📍 ${b.pickupAddress}</td>
-          <td>🚛 ${b.driverName}<br/><span style="color:var(--text-muted); font-size:11px;">${b.vehiclePlate}</span></td>
-          <td>📦 ${b.cargoType || 'Dry'} (${b.cargoWeightKg || 500}kg)</td>
-          <td><strong style="color:var(--navy);">LKR ${Math.round(b.totalFare || 0).toLocaleString()}</strong></td>
-          <td><span style="color:var(--green); font-weight:700;">LKR ${Math.round(b.commission || b.totalFare * 0.15).toLocaleString()}</span></td>
-          <td><strong style="color:var(--blue);">LKR ${Math.round(b.driverPayout || b.totalFare * 0.85).toLocaleString()}</strong></td>
+          <td style="font-weight:800; color:var(--navy);">${b.bookingNumber}</td>
+          <td><strong>${b.customerName}</strong><br/><span style="color:var(--text-muted); font-size:11px;">📞 ${b.customerPhone}</span></td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📍 ${b.pickupAddress}</td>
+          <td>${b.driverName !== 'Unassigned' ? `<strong>${b.driverName}</strong><br/><span style="color:var(--text-muted); font-size:11px;">🚛 ${b.vehiclePlateNumber}</span>` : '<span style="color:var(--orange); font-weight:700;">Unassigned</span>'}</td>
+          <td>📦 ${b.cargoType} (${b.cargoWeightKg}kg)</td>
+          <td><strong style="color:var(--navy);">LKR ${Math.round(b.totalFare).toLocaleString()}</strong></td>
+          <td><strong style="color:var(--orange);">LKR ${Math.round(b.commission).toLocaleString()}</strong></td>
+          <td><strong style="color:var(--green);">LKR ${Math.round(b.driverPayout).toLocaleString()}</strong></td>
           <td><span class="status-tag status-${b.status}">${b.status}</span></td>
           <td style="color:var(--text-muted); font-size:12px;">${new Date(b.createdAt).toLocaleDateString()}</td>
         </tr>
@@ -960,9 +966,8 @@
       if (!confirm(`Are you sure you want to ${approve ? 'APPROVE' : 'REJECT/REVOKE'} this driver partner?`)) return;
 
       try {
-        const res = await fetch(`${API_BASE}/drivers/${driverId}/verify`, {
+        const res = await customFetch(`${API_BASE}/drivers/${driverId}/verify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isApproved: approve })
         });
         const data = await res.json();
@@ -978,9 +983,8 @@
       if (!bankRef) return;
 
       try {
-        const res = await fetch(`${API_HOST}/api/payouts/admin/${payoutId}/approve`, {
+        const res = await customFetch(`${API_HOST}/api/payouts/admin/${payoutId}/approve`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ bankReferenceNumber: bankRef })
         });
         const data = await res.json();
