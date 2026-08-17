@@ -319,7 +319,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   const isAccepted = job.status !== 'Pending';
   const isCompleted = job.status === 'Delivered' || job.status === 'Cancelled';
 
-  // Phase Resolver (1..6)
+  // Phase Resolver (1..5)
   const getPhaseNumber = (status: string) => {
     switch (status) {
       case 'Assigned':
@@ -332,11 +332,10 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
       case 'InTransit':
         return 3;
       case 'AtDropoff':
-        return 4;
       case 'Delivered':
-        return 5; // Payment Settlement & Verification!
+        return 4; // Dropoff & Payment Received!
       case 'Completed':
-        return 6; // Fully Completed Trip!
+        return 5; // Fully Completed Trip!
       default:
         return 1;
     }
@@ -406,7 +405,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
         {/* Workflow Phase Stepper */}
         <View style={styles.stepperContainer}>
-          {['1. Pickup', '2. Load', '3. Transit', '4. Dropoff', '5. Pay', '6. Done'].map((stepLabel, idx) => {
+          {['1. Pickup', '2. Load', '3. Transit', '4. Dropoff & Pay', '5. Done'].map((stepLabel, idx) => {
             const stepNum = idx + 1;
             const active = phase === stepNum;
             const completed = phase > stepNum;
@@ -430,11 +429,10 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               {phase === 1 && '🚘 Step 1: Heading to Customer Pickup'}
               {phase === 2 && '📦 Step 2: Loading Cargo at Pickup'}
               {phase === 3 && `流域 Step 3: En-Route to Delivery (Stop ${activeStopIndex + 1}/${totalStops})`}
-              {phase === 4 && `📍 Step 4: Unloading at Stop ${activeStopIndex + 1}/${totalStops}`}
-              {phase === 5 && '💵 Step 5: Verify Payment & Settlement'}
-              {phase === 6 && '✅ Step 6: Trip Completed & Settled'}
+              {phase === 4 && `📍 Step 4: Dropoff & Payment Received (Stop ${activeStopIndex + 1}/${totalStops})`}
+              {phase === 5 && '✅ Step 5: Trip Completed & Settled'}
             </Text>
-            <View style={[styles.phaseBadge, { backgroundColor: phase >= 5 ? GREEN : ORANGE }]}>
+            <View style={[styles.phaseBadge, { backgroundColor: phase === 5 ? GREEN : ORANGE }]}>
               <Text style={styles.phaseBadgeText}>{job.status}</Text>
             </View>
           </View>
@@ -684,98 +682,81 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               </View>
             )}
 
-            {/* MULTI-DROP DELIVERY (TRANSIT & DROPOFF) */}
+            {/* MULTI-DROP DELIVERY (TRANSIT, DROPOFF & PAYMENT RECEIVED) */}
             {(phase === 3 || phase === 4) && (
               <View style={styles.phaseCard}>
                 <Text style={styles.phaseCardTitle}>
-                  📍 Delivery Stop {activeStopIndex + 1} of {totalStops}: {currentStop.address}
+                  📍 Step 4: Delivery & Payment Settlement (Stop {activeStopIndex + 1} of {totalStops})
                 </Text>
                 <Text style={styles.phaseCardSub}>
-                  Recipient: {currentStop.recipientName || job.pickupContactName || 'Recipient'} ({currentStop.recipientPhone || 'N/A'})
+                  Dropoff Address: {currentStop.address} • Recipient: {currentStop.recipientName || job.pickupContactName || 'Recipient'} ({currentStop.recipientPhone || 'N/A'})
                 </Text>
 
-                <Pressable style={[styles.primaryActionBtn, { backgroundColor: isFinalStop ? GREEN : ORANGE }]} onPress={handleNextStopOrComplete} disabled={busy}>
+                {/* TRIP FARE SETTLEMENT SUMMARY BOX */}
+                <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 10, marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                  <Text style={{ fontSize: 11, color: '#5A6B85', fontWeight: '800', letterSpacing: 0.5 }}>TRIP FARE SETTLEMENT SUMMARY</Text>
+                  
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 4 }}>
+                    <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '600' }}>Total Customer Fare:</Text>
+                    <Text style={{ fontSize: 15, color: '#1A2B4A', fontWeight: '800' }}>LKR {Math.round(job.totalFare || 0).toLocaleString()}</Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#E74C3C' }}>Platform Commission (15%):</Text>
+                    <Text style={{ fontSize: 12, color: '#E74C3C', fontWeight: '700' }}>- LKR {Math.round((job.totalFare * 0.15) || 0).toLocaleString()}</Text>
+                  </View>
+
+                  <View style={{ borderTopWidth: 1, borderTopColor: '#CBD5E1', paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 12, color: '#27AE60', fontWeight: '800' }}>Net Driver Earnings:</Text>
+                    <Text style={{ fontSize: 16, color: '#27AE60', fontWeight: '800' }}>LKR {Math.round(job.driverEarnings || job.driverPayout || (job.totalFare * 0.85) || 0).toLocaleString()}</Text>
+                  </View>
+                </View>
+
+                {/* Payment Method Banner */}
+                {job.paymentMethod === 'Card' ? (
+                  <View style={{ backgroundColor: '#E8F8F0', padding: 10, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: '#27AE60' }}>
+                    <Text style={{ color: '#27AE60', fontWeight: '800', fontSize: 12 }}>
+                      🟢 ONLINE CARD PAYMENT — PRE-PAID IN APP (DO NOT COLLECT CASH)
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: '#FFF5E5', padding: 10, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: '#F5A623' }}>
+                    <Text style={{ color: '#D97706', fontWeight: '800', fontSize: 13 }}>
+                      💵 COLLECT CASH FROM CUSTOMER: LKR {Math.round(job.totalFare || 0).toLocaleString()}
+                    </Text>
+                  </View>
+                )}
+
+                {/* PRIMARY ACTION 1: DIRECT PROMINENT PAYMENT RECEIVED & COMPLETE TRIP BUTTON */}
+                <Pressable
+                  style={[styles.primaryActionBtn, { backgroundColor: GREEN, marginBottom: 10, paddingVertical: 16 }]}
+                  onPress={submitPaymentVerification}
+                  disabled={busy}>
+                  {busy ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <Text style={[styles.primaryActionBtnText, { fontSize: 15 }]}>
+                      💵 CONFIRM PAYMENT RECEIVED & COMPLETE TRIP
+                    </Text>
+                  )}
+                </Pressable>
+
+                {/* SECONDARY ACTION 2: UNLOAD / POD BUTTON */}
+                <Pressable
+                  style={[styles.primaryActionBtn, { backgroundColor: '#4A5568' }]}
+                  onPress={handleNextStopOrComplete}
+                  disabled={busy}>
                   <Text style={styles.primaryActionBtnText}>
                     {isFinalStop
-                      ? '✍️ Unload Final Stop & Capture PoD'
+                      ? '✍️ Unload Cargo & Capture PoD Signature'
                       : `📍 Unload at Stop ${activeStopIndex + 1} (Advance to Stop ${activeStopIndex + 2})`}
                   </Text>
                 </Pressable>
               </View>
             )}
 
-            {/* PHASE 5: PAYMENT VERIFICATION & SETTLEMENT */}
+            {/* PHASE 5: FULLY COMPLETED & SETTLED */}
             {phase === 5 && (
-              <View style={styles.phaseCard}>
-                <Text style={styles.phaseCardTitle}>💵 Step 5: Verify Payment Received & Settlement</Text>
-                <Text style={styles.phaseCardSub}>
-                  Dropoff & Proof of Delivery (PoD) completed. Please verify payment received from customer to complete trip.
-                </Text>
-
-                <View style={{ backgroundColor: '#F8FAFC', padding: 14, borderRadius: 12, marginVertical: 12, borderWidth: 1, borderColor: '#E2E8F0' }}>
-                  <Text style={{ fontSize: 11, color: '#5A6B85', fontWeight: '800', letterSpacing: 0.5 }}>TRIP FARE SETTLEMENT SUMMARY</Text>
-                  
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 }}>
-                    <Text style={{ fontSize: 14, color: '#1A2B4A', fontWeight: '600' }}>Total Customer Fare:</Text>
-                    <Text style={{ fontSize: 16, color: '#1A2B4A', fontWeight: '800' }}>LKR {Math.round(job.totalFare || 0).toLocaleString()}</Text>
-                  </View>
-
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={{ fontSize: 13, color: '#E74C3C' }}>Platform Commission (15%):</Text>
-                    <Text style={{ fontSize: 13, color: '#E74C3C', fontWeight: '700' }}>- LKR {Math.round((job.totalFare * 0.15) || 0).toLocaleString()}</Text>
-                  </View>
-
-                  <View style={{ borderTopWidth: 1, borderTopColor: '#CBD5E1', paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 13, color: '#27AE60', fontWeight: '800' }}>Net Driver Earnings Credited:</Text>
-                    <Text style={{ fontSize: 18, color: '#27AE60', fontWeight: '800' }}>LKR {Math.round(job.driverEarnings || job.driverPayout || (job.totalFare * 0.85) || 0).toLocaleString()}</Text>
-                  </View>
-                </View>
-
-                {/* Payment Method Banner */}
-                {job.paymentMethod === 'Card' ? (
-                  <View style={{ backgroundColor: '#E8F8F0', padding: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#27AE60' }}>
-                    <Text style={{ color: '#27AE60', fontWeight: '800', fontSize: 13 }}>
-                      🟢 ONLINE CARD PAYMENT — PRE-PAID IN APP
-                    </Text>
-                    <Text style={{ color: '#5A6B85', fontSize: 12, marginTop: 4 }}>
-                      Customer paid online via card/digital wallet. Do not collect cash. Earnings will be credited to your bank payout wallet.
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={{ backgroundColor: '#FFF5E5', padding: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#F5A623' }}>
-                    <Text style={{ color: '#D97706', fontWeight: '800', fontSize: 13 }}>
-                      💵 CASH PAYMENT TO COLLECT FROM CUSTOMER
-                    </Text>
-                    <Text style={{ color: '#1A2B4A', fontSize: 16, fontWeight: '800', marginTop: 4 }}>
-                      Exact Cash Amount: LKR {Math.round(job.totalFare || 0).toLocaleString()}
-                    </Text>
-                    <Text style={{ color: '#5A6B85', fontSize: 11, marginTop: 2 }}>
-                      Collect cash payment from recipient before completing delivery.
-                    </Text>
-                  </View>
-                )}
-
-                {/* Payment Checkbox */}
-                <Pressable
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, backgroundColor: 'white', paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1' }}
-                  onPress={() => setPaymentConfirmed(c => !c)}>
-                  <Text style={{ fontSize: 24, marginRight: 10 }}>{paymentConfirmed ? '✅' : '⬜'}</Text>
-                  <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '700', flex: 1 }}>
-                    I confirm that payment of LKR {Math.round(job.totalFare || 0).toLocaleString()} was received & verified.
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.primaryActionBtn, { backgroundColor: GREEN, marginTop: 14 }]}
-                  onPress={submitPaymentVerification}
-                  disabled={busy || !paymentConfirmed}>
-                  {busy ? <ActivityIndicator color="white" /> : <Text style={styles.primaryActionBtnText}>💳 Confirm Payment Received & Complete Trip</Text>}
-                </Pressable>
-              </View>
-            )}
-
-            {/* PHASE 6: FULLY COMPLETED & SETTLED */}
-            {phase === 6 && (
               <View style={styles.completedCard}>
                 <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 6 }}>🎉</Text>
                 <Text style={styles.completedTitle}>Trip Completed & Payment Verified!</Text>
