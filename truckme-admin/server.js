@@ -9,9 +9,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 8083;
 
-const distDir = path.join(__dirname, 'dist');
 const publicDir = path.join(__dirname, 'public');
-const targetDir = fs.existsSync(distDir) ? distDir : publicDir;
+const targetDir = publicDir;
 
 app.use(express.static(targetDir));
 
