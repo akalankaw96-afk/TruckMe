@@ -571,6 +571,86 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
+    /// Driver verifies payment received (Cash collected or Card confirmed) and completes the trip.
+    /// </summary>
+    [HttpPost("{id:guid}/verify-payment")]
+    [HttpPut("{id:guid}/verify-payment")]
+    public async Task<IActionResult> VerifyPaymentAndCompleteTrip(Guid id, [FromBody] VerifyPaymentDto dto)
+    {
+        var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id);
+        if (booking == null) return NotFound(new { message = "Booking not found" });
+
+        booking.Status = BookingStatus.Completed;
+        booking.CompletedAt = DateTime.UtcNow;
+
+        // Create or update Payment record
+        var payment = await _context.Payments.FirstOrDefaultAsync(p => p.BookingId == id);
+        if (payment == null)
+        {
+            payment = new Payment
+            {
+                Id = Guid.NewGuid(),
+                BookingId = booking.Id,
+                Amount = dto.CashCollectedAmount.HasValue && dto.CashCollectedAmount.Value > 0 ? dto.CashCollectedAmount.Value : booking.TotalFare,
+                CommissionAmount = booking.Commission,
+                DriverPayoutAmount = booking.DriverPayout,
+                Method = booking.PaymentMethod,
+                Status = PaymentStatus.Paid,
+                TransactionId = dto.TransactionReference ?? $"PAY-{DateTime.UtcNow:yyMMddHHmmss}-{booking.Id.ToString()[..4]}",
+                CreatedAt = DateTime.UtcNow,
+                PaidAt = DateTime.UtcNow
+            };
+            await _context.Payments.AddAsync(payment);
+        }
+        else
+        {
+            payment.Status = PaymentStatus.Paid;
+            payment.PaidAt = DateTime.UtcNow;
+            if (!string.IsNullOrEmpty(dto.TransactionReference))
+            {
+                payment.TransactionId = dto.TransactionReference;
+            }
+        }
+
+        // Set driver status back to Online so driver can accept new jobs!
+        if (booking.DriverId.HasValue)
+        {
+            var driver = await _context.Drivers.FirstOrDefaultAsync(d => d.Id == booking.DriverId.Value);
+            if (driver != null)
+            {
+                driver.Status = DriverStatus.Online;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        // Push notification to customer
+        _ = Task.Run(async () =>
+        {
+            var customerUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == booking.CustomerId);
+            if (!string.IsNullOrEmpty(customerUser?.FcmToken))
+            {
+                await NotificationsController.SendExpoPushNotificationAsync(
+                    customerUser.FcmToken,
+                    "🎉 Trip Completed & Payment Verified!",
+                    $"Payment of LKR {Math.Round(booking.TotalFare):N0} verified by driver. Thank you for choosing TruckMe!",
+                    new { bookingId = booking.Id, status = "Completed" }
+                );
+            }
+        });
+
+        return Ok(new
+        {
+            message = "Payment verified and trip completed successfully!",
+            bookingId = booking.Id,
+            status = "Completed",
+            totalFare = booking.TotalFare,
+            driverPayout = booking.DriverPayout,
+            completedAt = booking.CompletedAt
+        });
+    }
+
+    /// <summary>
     /// Gets all pending / searching bookings available for drivers to accept.
     /// </summary>
     [HttpGet("pending")]
@@ -884,5 +964,13 @@ public class SubmitPodDto
     public string? RecipientName { get; set; }
     public string? RecipientSignature { get; set; }
     public string? CargoPhotoUrl { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class VerifyPaymentDto
+{
+    public string? PaymentMethod { get; set; }
+    public decimal? CashCollectedAmount { get; set; }
+    public string? TransactionReference { get; set; }
     public string? Notes { get; set; }
 }

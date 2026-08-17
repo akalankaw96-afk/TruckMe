@@ -42,6 +42,39 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   const [showEditPickupModal, setShowEditPickupModal] = useState(false);
   const [editPickupText, setEditPickupText] = useState('');
 
+  // Payment Verification & Settlement State
+  const [paymentConfirmed, setPaymentConfirmed] = useState(true);
+  const [cashCollectedInput, setCashCollectedInput] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+
+  const submitPaymentVerification = async () => {
+    if (!paymentConfirmed) {
+      Alert.alert('Confirmation Required', 'Please confirm that payment has been received before completing the trip.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await client.post(`/api/bookings/${jobId}/verify-payment`, {
+        cashCollectedAmount: Number(cashCollectedInput) || job?.totalFare || 0,
+        paymentMethod: job?.paymentMethod || 'Cash',
+        notes: paymentNotes || 'Payment verified by driver'
+      });
+
+      setJob((prev: any) => (prev ? { ...prev, status: 'Completed' } : prev));
+      if (Platform.OS === 'web') {
+        window.alert('🎉 Payment Verified & Trip Completed! Net earnings credited to your driver wallet.');
+      } else {
+        Alert.alert('🎉 Trip Completed!', 'Payment verified and trip marked as completed. Earnings credited to your wallet.');
+      }
+      await load();
+    } catch (e: any) {
+      Alert.alert('Payment Verification Error', e?.response?.data?.message || e?.message || 'Failed to verify payment');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submitPickupOverride = async (customAddress?: string) => {
     const targetAddr = customAddress || editPickupText;
     if (!targetAddr) return;
@@ -254,7 +287,8 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
         notes: podNotes || 'Cargo inspected and delivered safely across all stops',
       });
       setShowPodModal(false);
-      Alert.alert('✅ Multi-Drop PoD Verified', 'All delivery stops completed successfully!');
+      setJob((prev: any) => (prev ? { ...prev, status: 'Delivered' } : prev));
+      Alert.alert('✅ Proof of Delivery (PoD) Verified', 'Dropoff complete! Next step: Verify payment received from customer to finish trip.');
       await load();
     } catch (e: any) {
       Alert.alert('Failed', e?.response?.data?.message || e?.message);
@@ -285,7 +319,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   const isAccepted = job.status !== 'Pending';
   const isCompleted = job.status === 'Delivered' || job.status === 'Cancelled';
 
-  // Phase Resolver (1..5)
+  // Phase Resolver (1..6)
   const getPhaseNumber = (status: string) => {
     switch (status) {
       case 'Assigned':
@@ -300,8 +334,9 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
       case 'AtDropoff':
         return 4;
       case 'Delivered':
+        return 5; // Payment Settlement & Verification!
       case 'Completed':
-        return 5;
+        return 6; // Fully Completed Trip!
       default:
         return 1;
     }
@@ -371,7 +406,7 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
 
         {/* Workflow Phase Stepper */}
         <View style={styles.stepperContainer}>
-          {['1. Pickup', '2. Load', '3. Transit', '4. Dropoff', '5. Done'].map((stepLabel, idx) => {
+          {['1. Pickup', '2. Load', '3. Transit', '4. Dropoff', '5. Pay', '6. Done'].map((stepLabel, idx) => {
             const stepNum = idx + 1;
             const active = phase === stepNum;
             const completed = phase > stepNum;
@@ -396,9 +431,10 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               {phase === 2 && '📦 Step 2: Loading Cargo at Pickup'}
               {phase === 3 && `流域 Step 3: En-Route to Delivery (Stop ${activeStopIndex + 1}/${totalStops})`}
               {phase === 4 && `📍 Step 4: Unloading at Stop ${activeStopIndex + 1}/${totalStops}`}
-              {phase === 5 && '✅ Step 5: Multi-Drop Delivery Completed'}
+              {phase === 5 && '💵 Step 5: Verify Payment & Settlement'}
+              {phase === 6 && '✅ Step 6: Trip Completed & Settled'}
             </Text>
-            <View style={[styles.phaseBadge, { backgroundColor: phase === 5 ? GREEN : ORANGE }]}>
+            <View style={[styles.phaseBadge, { backgroundColor: phase >= 5 ? GREEN : ORANGE }]}>
               <Text style={styles.phaseBadgeText}>{job.status}</Text>
             </View>
           </View>
@@ -668,16 +704,86 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               </View>
             )}
 
-            {/* COMPLETED PHASE */}
+            {/* PHASE 5: PAYMENT VERIFICATION & SETTLEMENT */}
             {phase === 5 && (
+              <View style={styles.phaseCard}>
+                <Text style={styles.phaseCardTitle}>💵 Step 5: Verify Payment Received & Settlement</Text>
+                <Text style={styles.phaseCardSub}>
+                  Dropoff & Proof of Delivery (PoD) completed. Please verify payment received from customer to complete trip.
+                </Text>
+
+                <View style={{ backgroundColor: '#F8FAFC', padding: 14, borderRadius: 12, marginVertical: 12, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                  <Text style={{ fontSize: 11, color: '#5A6B85', fontWeight: '800', letterSpacing: 0.5 }}>TRIP FARE SETTLEMENT SUMMARY</Text>
+                  
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 6 }}>
+                    <Text style={{ fontSize: 14, color: '#1A2B4A', fontWeight: '600' }}>Total Customer Fare:</Text>
+                    <Text style={{ fontSize: 16, color: '#1A2B4A', fontWeight: '800' }}>LKR {Math.round(job.totalFare || 0).toLocaleString()}</Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 13, color: '#E74C3C' }}>Platform Commission (15%):</Text>
+                    <Text style={{ fontSize: 13, color: '#E74C3C', fontWeight: '700' }}>- LKR {Math.round((job.totalFare * 0.15) || 0).toLocaleString()}</Text>
+                  </View>
+
+                  <View style={{ borderTopWidth: 1, borderTopColor: '#CBD5E1', paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13, color: '#27AE60', fontWeight: '800' }}>Net Driver Earnings Credited:</Text>
+                    <Text style={{ fontSize: 18, color: '#27AE60', fontWeight: '800' }}>LKR {Math.round(job.driverEarnings || job.driverPayout || (job.totalFare * 0.85) || 0).toLocaleString()}</Text>
+                  </View>
+                </View>
+
+                {/* Payment Method Banner */}
+                {job.paymentMethod === 'Card' ? (
+                  <View style={{ backgroundColor: '#E8F8F0', padding: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#27AE60' }}>
+                    <Text style={{ color: '#27AE60', fontWeight: '800', fontSize: 13 }}>
+                      🟢 ONLINE CARD PAYMENT — PRE-PAID IN APP
+                    </Text>
+                    <Text style={{ color: '#5A6B85', fontSize: 12, marginTop: 4 }}>
+                      Customer paid online via card/digital wallet. Do not collect cash. Earnings will be credited to your bank payout wallet.
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: '#FFF5E5', padding: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#F5A623' }}>
+                    <Text style={{ color: '#D97706', fontWeight: '800', fontSize: 13 }}>
+                      💵 CASH PAYMENT TO COLLECT FROM CUSTOMER
+                    </Text>
+                    <Text style={{ color: '#1A2B4A', fontSize: 16, fontWeight: '800', marginTop: 4 }}>
+                      Exact Cash Amount: LKR {Math.round(job.totalFare || 0).toLocaleString()}
+                    </Text>
+                    <Text style={{ color: '#5A6B85', fontSize: 11, marginTop: 2 }}>
+                      Collect cash payment from recipient before completing delivery.
+                    </Text>
+                  </View>
+                )}
+
+                {/* Payment Checkbox */}
+                <Pressable
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, backgroundColor: 'white', paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1' }}
+                  onPress={() => setPaymentConfirmed(c => !c)}>
+                  <Text style={{ fontSize: 24, marginRight: 10 }}>{paymentConfirmed ? '✅' : '⬜'}</Text>
+                  <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '700', flex: 1 }}>
+                    I confirm that payment of LKR {Math.round(job.totalFare || 0).toLocaleString()} was received & verified.
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.primaryActionBtn, { backgroundColor: GREEN, marginTop: 14 }]}
+                  onPress={submitPaymentVerification}
+                  disabled={busy || !paymentConfirmed}>
+                  {busy ? <ActivityIndicator color="white" /> : <Text style={styles.primaryActionBtnText}>💳 Confirm Payment Received & Complete Trip</Text>}
+                </Pressable>
+              </View>
+            )}
+
+            {/* PHASE 6: FULLY COMPLETED & SETTLED */}
+            {phase === 6 && (
               <View style={styles.completedCard}>
                 <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 6 }}>🎉</Text>
-                <Text style={styles.completedTitle}>All {totalStops} Delivery Stops Completed!</Text>
-                <Text style={styles.completedSub}>Net Payout of LKR {Math.round(job.driverEarnings || 0).toLocaleString()} credited to your wallet.</Text>
+                <Text style={styles.completedTitle}>Trip Completed & Payment Verified!</Text>
+                <Text style={styles.completedSub}>Net Driver Payout of LKR {Math.round(job.driverEarnings || job.driverPayout || (job.totalFare * 0.85) || 0).toLocaleString()} credited to your wallet.</Text>
                 
                 <View style={styles.podProofBox}>
-                  <Text style={styles.podProofTitle}>✅ Proof of Delivery (PoD) Verified</Text>
-                  <Text style={styles.podProofSub}>Electronic Recipient Signature & Timestamp Recorded</Text>
+                  <Text style={styles.podProofTitle}>✅ Proof of Delivery & Payment Settled</Text>
+                  <Text style={styles.podProofSub}>Customer payment verified & electronic signature archived in system.</Text>
                 </View>
 
                 <Pressable style={styles.backBtn} onPress={onBack}>
