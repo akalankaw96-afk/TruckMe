@@ -651,6 +651,49 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
+    /// Driver adds additional unloading detention / waiting time surcharge to trip fare.
+    /// </summary>
+    [HttpPost("{id:guid}/unloading-surcharge")]
+    [HttpPut("{id:guid}/unloading-surcharge")]
+    public async Task<IActionResult> AddUnloadingSurcharge(Guid id, [FromBody] AddUnloadingSurchargeDto dto)
+    {
+        var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id);
+        if (booking == null) return NotFound(new { message = "Booking not found" });
+
+        if (dto.Amount > 0)
+        {
+            booking.AddOnFare += dto.Amount;
+            booking.TotalFare = booking.BaseFare + booking.DistanceFare + booking.AddOnFare + booking.StopFare;
+            booking.Commission = booking.TotalFare * booking.CommissionRate;
+            booking.DriverPayout = booking.TotalFare - booking.Commission;
+            await _context.SaveChangesAsync();
+
+            // Trigger automated push notification to customer
+            _ = Task.Run(async () =>
+            {
+                var customerUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == booking.CustomerId);
+                if (!string.IsNullOrEmpty(customerUser?.FcmToken))
+                {
+                    await NotificationsController.SendExpoPushNotificationAsync(
+                        customerUser.FcmToken,
+                        "💰 Unloading Waiting Surcharge Added",
+                        $"Unloading detention fee of LKR {dto.Amount:N0} was added to booking #{booking.Id.ToString()[..8].ToUpper()} due to {dto.Reason ?? "excessive unloading time"}.",
+                        new { bookingId = booking.Id, addOnFare = booking.AddOnFare, totalFare = booking.TotalFare }
+                    );
+                }
+            });
+        }
+
+        return Ok(new
+        {
+            message = "Unloading waiting surcharge added successfully",
+            totalFare = booking.TotalFare,
+            addOnFare = booking.AddOnFare,
+            driverPayout = booking.DriverPayout
+        });
+    }
+
+    /// <summary>
     /// Gets all pending / searching bookings available for drivers to accept.
     /// </summary>
     [HttpGet("pending")]
@@ -973,4 +1016,10 @@ public class VerifyPaymentDto
     public decimal? CashCollectedAmount { get; set; }
     public string? TransactionReference { get; set; }
     public string? Notes { get; set; }
+}
+
+public class AddUnloadingSurchargeDto
+{
+    public decimal Amount { get; set; }
+    public string? Reason { get; set; }
 }

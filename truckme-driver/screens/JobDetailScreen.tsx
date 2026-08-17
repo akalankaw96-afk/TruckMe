@@ -47,6 +47,49 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
   const [cashCollectedInput, setCashCollectedInput] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
 
+  // Unloading Timer & Surcharge State
+  const [unloadingSeconds, setUnloadingSeconds] = useState(0);
+  const [unloadingChecklist, setUnloadingChecklist] = useState({
+    parkedSafely: true,
+    cargoInspected: true,
+    countVerified: true,
+  });
+
+  // Unloading Surcharge Modal State
+  const [showSurchargeModal, setShowSurchargeModal] = useState(false);
+  const [surchargeAmountText, setSurchargeAmountText] = useState('1000');
+  const [surchargeReasonText, setSurchargeReasonText] = useState('Excessive unloading & waiting time at dropoff location');
+
+  const submitUnloadingSurcharge = async (customAmt?: number, customReason?: string) => {
+    const amt = customAmt || Number(surchargeAmountText);
+    if (!amt || amt <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid surcharge amount in LKR.');
+      return;
+    }
+
+    const reason = customReason || surchargeReasonText || 'Excessive unloading & waiting time at dropoff';
+
+    setBusy(true);
+    try {
+      await client.post(`/api/bookings/${jobId}/unloading-surcharge`, {
+        amount: amt,
+        reason: reason,
+      });
+
+      setShowSurchargeModal(false);
+      if (Platform.OS === 'web') {
+        window.alert(`✓ Unloading Surcharge of LKR ${amt.toLocaleString()} added to trip fare!`);
+      } else {
+        Alert.alert('Surcharge Added', `Unloading surcharge of LKR ${amt.toLocaleString()} added to trip fare.`);
+      }
+      await load();
+    } catch (e: any) {
+      Alert.alert('Surcharge Error', e?.response?.data?.message || e?.message || 'Failed to add surcharge');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submitPaymentVerification = async () => {
     if (!paymentConfirmed) {
       Alert.alert('Confirmation Required', 'Please confirm that payment has been received before completing the trip.');
@@ -133,6 +176,18 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
       }, 1000);
     } else {
       setLoadingSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [job?.status]);
+
+  useEffect(() => {
+    let interval: any;
+    if (job?.status === 'Unloading' || job?.status === 'AtDropoff') {
+      interval = setInterval(() => {
+        setUnloadingSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setUnloadingSeconds(0);
     }
     return () => clearInterval(interval);
   }, [job?.status]);
@@ -682,24 +737,88 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
               </View>
             )}
 
-            {/* MULTI-DROP DELIVERY (TRANSIT, DROPOFF & PAYMENT RECEIVED) */}
+            {/* MULTI-DROP DELIVERY (TRANSIT, UNLOADING, DROPOFF & PAYMENT RECEIVED) */}
             {(phase === 3 || phase === 4) && (
               <View style={styles.phaseCard}>
                 <Text style={styles.phaseCardTitle}>
-                  📍 Step 4: Delivery & Payment Settlement (Stop {activeStopIndex + 1} of {totalStops})
+                  📍 Step 4: Unloading & Payment Settlement (Stop {activeStopIndex + 1} of {totalStops})
                 </Text>
                 <Text style={styles.phaseCardSub}>
                   Dropoff Address: {currentStop.address} • Recipient: {currentStop.recipientName || job.pickupContactName || 'Recipient'} ({currentStop.recipientPhone || 'N/A'})
                 </Text>
+
+                {/* UNLOADING PHASE CONTROLS & LIVE TIMER */}
+                {job.status !== 'Unloading' ? (
+                  <Pressable
+                    style={[styles.primaryActionBtn, { backgroundColor: '#8B5CF6', marginVertical: 10 }]}
+                    onPress={() => updateStatus('Unloading')}
+                    disabled={busy}>
+                    <Text style={styles.primaryActionBtnText}>📦 Start Cargo Unloading Process & Timer</Text>
+                  </Pressable>
+                ) : (
+                  <View style={{ marginTop: 8, marginBottom: 12 }}>
+                    {/* Live Unloading Elapsed Timer Badge */}
+                    <View style={{ backgroundColor: '#1A2B4A', padding: 14, borderRadius: 10, alignItems: 'center', marginBottom: 12 }}>
+                      <Text style={{ color: '#F5A623', fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>
+                        ⏳ CARGO UNLOADING & WAITING TIME IN PROGRESS
+                      </Text>
+                      <Text style={{ color: 'white', fontSize: 32, fontWeight: '800', marginVertical: 4 }}>
+                        {formatTimer(unloadingSeconds)}
+                      </Text>
+                      <Text style={{ color: '#A0AEC0', fontSize: 11 }}>
+                        Free Allowance: 30 Mins • Live status broadcast to customer
+                      </Text>
+                    </View>
+
+                    {/* Unloading Inspection Checklist */}
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#1A2B4A', marginBottom: 6 }}>
+                      📋 Driver Unloading Verification Checklist:
+                    </Text>
+
+                    <Pressable
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
+                      onPress={() => setUnloadingChecklist(c => ({ ...c, parkedSafely: !c.parkedSafely }))}>
+                      <Text style={{ fontSize: 18, marginRight: 8 }}>{unloadingChecklist.parkedSafely ? '✅' : '⬜'}</Text>
+                      <Text style={{ fontSize: 12, color: '#1A2B4A', fontWeight: '600', flex: 1 }}>
+                        Truck parked safely at unloading bay / gate
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6 }}
+                      onPress={() => setUnloadingChecklist(c => ({ ...c, cargoInspected: !c.cargoInspected }))}>
+                      <Text style={{ fontSize: 18, marginRight: 8 }}>{unloadingChecklist.cargoInspected ? '✅' : '⬜'}</Text>
+                      <Text style={{ fontSize: 12, color: '#1A2B4A', fontWeight: '600', flex: 1 }}>
+                        Cargo unstrapped & inspected with recipient
+                      </Text>
+                    </Pressable>
+
+                    {/* Add Unloading / Detention Waiting Surcharge Button */}
+                    <Pressable
+                      style={{ backgroundColor: '#FFF3DC', padding: 10, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#F5A623', alignItems: 'center' }}
+                      onPress={() => setShowSurchargeModal(true)}>
+                      <Text style={{ color: '#D97706', fontWeight: '800', fontSize: 12 }}>
+                        ➕ Add Unloading / Waiting Delay Surcharge (Extra Fare)
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
 
                 {/* TRIP FARE SETTLEMENT SUMMARY BOX */}
                 <View style={{ backgroundColor: '#F8FAFC', padding: 12, borderRadius: 10, marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0' }}>
                   <Text style={{ fontSize: 11, color: '#5A6B85', fontWeight: '800', letterSpacing: 0.5 }}>TRIP FARE SETTLEMENT SUMMARY</Text>
                   
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginVertical: 4 }}>
-                    <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '600' }}>Total Customer Fare:</Text>
-                    <Text style={{ fontSize: 15, color: '#1A2B4A', fontWeight: '800' }}>LKR {Math.round(job.totalFare || 0).toLocaleString()}</Text>
+                    <Text style={{ fontSize: 13, color: '#1A2B4A', fontWeight: '600' }}>Base & Distance Fare:</Text>
+                    <Text style={{ fontSize: 14, color: '#1A2B4A', fontWeight: '800' }}>LKR {Math.round((job.baseFare || 0) + (job.distanceFare || 0)).toLocaleString()}</Text>
                   </View>
+
+                  {job.addOnFare > 0 && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 13, color: '#D97706', fontWeight: '700' }}>Unloading / Delay Surcharge:</Text>
+                      <Text style={{ fontSize: 14, color: '#D97706', fontWeight: '800' }}>+ LKR {Math.round(job.addOnFare).toLocaleString()}</Text>
+                    </View>
+                  )}
 
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                     <Text style={{ fontSize: 12, color: '#E74C3C' }}>Platform Commission (15%):</Text>
@@ -870,6 +989,67 @@ export default function JobDetailScreen({ user, driver, vehicle, jobId, onBack, 
                 </Pressable>
                 <Pressable style={podStyles.submitBtn} onPress={submitPod} disabled={busy}>
                   {busy ? <ActivityIndicator color="white" /> : <Text style={podStyles.submitBtnText}>✓ Verify PoD & Finish</Text>}
+                </Pressable>
+        {/* Unloading Waiting / Detention Surcharge Modal */}
+        <Modal visible={showSurchargeModal} animationType="fade" transparent>
+          <View style={podStyles.overlay}>
+            <View style={podStyles.modalCard}>
+              <Text style={podStyles.modalTitle}>💰 Add Unloading Delay Surcharge</Text>
+              <Text style={podStyles.modalSub}>
+                Add detention or waiting time fare to customer invoice if unloading took excessive time or location delay occurred.
+              </Text>
+
+              <Text style={podStyles.label}>Quick Preset Surcharge Amounts</Text>
+              <View style={{ flexDirection: 'row', gap: 6, marginVertical: 8 }}>
+                {[500, 1000, 1500, 2500].map((preset) => (
+                  <Pressable
+                    key={preset}
+                    style={{
+                      flex: 1,
+                      backgroundColor: Number(surchargeAmountText) === preset ? '#D97706' : '#FFF3DC',
+                      paddingVertical: 8,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: '#F5A623',
+                      alignItems: 'center',
+                    }}
+                    onPress={() => setSurchargeAmountText(preset.toString())}>
+                    <Text
+                      style={{
+                        color: Number(surchargeAmountText) === preset ? 'white' : '#D97706',
+                        fontWeight: '800',
+                        fontSize: 11,
+                      }}>
+                      +LKR {preset}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={podStyles.label}>Custom Surcharge Amount (LKR)</Text>
+              <TextInput
+                style={podStyles.input}
+                keyboardType="numeric"
+                placeholder="e.g. 1500"
+                value={surchargeAmountText}
+                onChangeText={setSurchargeAmountText}
+              />
+
+              <Text style={podStyles.label}>Reason for Surcharge</Text>
+              <TextInput
+                style={[podStyles.input, { height: 55 }]}
+                multiline
+                placeholder="e.g. 45 mins unloading delay at bay..."
+                value={surchargeReasonText}
+                onChangeText={setSurchargeReasonText}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <Pressable style={podStyles.cancelBtn} onPress={() => setShowSurchargeModal(false)}>
+                  <Text style={podStyles.cancelBtnText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={podStyles.submitBtn} onPress={() => submitUnloadingSurcharge()} disabled={busy}>
+                  {busy ? <ActivityIndicator color="white" /> : <Text style={podStyles.submitBtnText}>Add to Total Fare</Text>}
                 </Pressable>
               </View>
             </View>
